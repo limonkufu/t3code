@@ -1569,8 +1569,11 @@ describe("storage cleanup reports and local file policies", () => {
         expect(yield* fs.readFileString(`${worktree}/tracked.txt`)).toBe("original\n");
         yield* fs.remove(`${index.trim()}.lock`);
         const gitFile = yield* fs.readFileString(`${worktree}/.git`);
-        yield* fs.writeFileString(`${worktree}/.git`, "gitdir: /missing-git-directory\n");
-        expect((yield* service.runNow).entries[0]).toMatchObject(changed);
+        for (const invalidGitFile of ["gitdir: /missing-git-directory\n", "invalid gitfile\n"]) {
+          yield* fs.writeFileString(`${worktree}/.git`, invalidGitFile);
+          expect((yield* service.runNow).entries[0]).toMatchObject(changed);
+          expect(yield* fs.readFileString(`${worktree}/tracked.txt`)).toBe("original\n");
+        }
         yield* fs.writeFileString(`${worktree}/.git`, gitFile);
         expect((yield* service.runNow).entries[0]).toMatchObject({ outcome: "removed" });
         expect(fullStatusCalls()).toBe(0);
