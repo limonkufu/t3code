@@ -1,3 +1,4 @@
+import { useNamedWorkspaceView } from "../../state/namedWorkspaces";
 import { uuidv4 } from "../../lib/uuid";
 import { ThreadUndoNotice } from "./ThreadUndoNotice";
 import { Toolbar } from "../../components/ui/Toolbar";
@@ -6,7 +7,7 @@ import { NativePrimaryColumnContext } from "../../native/v5-workspace-context";
 import * as Arr from "effect/Array";
 import * as Order from "effect/Order";
 import { useNavigation } from "@react-navigation/native";
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 import { Platform, useWindowDimensions } from "react-native";
 
 import type { EnvironmentThreadShell } from "@t3tools/client-runtime/state/shell";
@@ -42,7 +43,7 @@ export function HomeRouteScreen() {
   const columnMetrics = useNativeColumnLayoutMetrics();
   const deviceType = useDeviceType();
   const headerWidth = nativePrimaryColumn ? (columnMetrics?.width ?? windowWidth) : windowWidth;
-  const { layout, panes, primarySidebarSearchQuery, setPrimarySidebarSearchQuery, startNewTask } =
+  const { layout, panes, setPrimarySidebarSearchQuery, startNewTask } =
     useAdaptiveWorkspaceLayout();
   const selectDetail = useSelectWorkspaceDetail();
   const projects = useProjects();
@@ -57,15 +58,12 @@ export function HomeRouteScreen() {
   const navigation = useNavigation();
   const selectTab = useSelectWorkspaceTab();
   const workspace = useWorkspaceTabs();
-  const [localSearchQuery, setLocalSearchQuery] = useState("");
-  const searchQuery =
-    Platform.OS === "android"
-      ? primarySidebarSearchQuery
-      : (workspace?.state.tabs.threads.query ?? localSearchQuery);
+  const [namedView, updateNamedView] = useNamedWorkspaceView();
+  const searchQuery = namedView.query ?? "";
   const setSearchQuery = (query: string) => {
+    updateNamedView({ query });
     if (Platform.OS === "android") setPrimarySidebarSearchQuery(query);
     else if (workspace) workspace.dispatch({ type: "query", query, tab: "threads" });
-    else setLocalSearchQuery(query);
   };
   const handleSelectThread = (thread: EnvironmentThreadShell) =>
     selectDetail({

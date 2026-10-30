@@ -1,3 +1,4 @@
+import * as NamedWorkspaceStore from "../workspace/NamedWorkspaceStore.ts";
 import * as NodeServices from "@effect/platform-node/NodeServices";
 import { assert, it } from "@effect/vitest";
 import {
@@ -91,6 +92,9 @@ it.effect.each([
       runsToRollback: [{ id: "later-run", ordinal: 1, status: "completed", rootNodeId: null }],
     } as unknown as ProjectionCheckpointRollbackContext;
     const layerTest = CheckpointRollbackService.layer.pipe(
+      Layer.provide(
+        Layer.mock(NamedWorkspaceStore.NamedWorkspaceStore)({ assertAvailable: () => Effect.void }),
+      ),
       Layer.provide(
         Layer.mergeAll(
           NodeServices.layer,

@@ -1,3 +1,4 @@
+import * as NamedWorkspaceService from "./workspace/NamedWorkspaceService.ts";
 import * as NodeServices from "@effect/platform-node/NodeServices";
 import { assert, it } from "@effect/vitest";
 import {
@@ -646,7 +647,10 @@ it.effect(
             },
             {},
             yield* ServerBrowser.ServerBrowser,
-          ).pipe(Layer.provide(configRpcServices)),
+          ).pipe(
+            Layer.provide(configRpcServices),
+            Layer.provide(Layer.mock(NamedWorkspaceService.NamedWorkspaceService)({})),
+          ),
         ),
       );
       const requestId = RpcMessage.RequestId("config");
@@ -812,7 +816,10 @@ it.effect("on-demand clients get provider config without workspace snapshots", (
           },
           {},
           yield* ServerBrowser.ServerBrowser,
-        ).pipe(Layer.provide(configRpcServices)),
+        ).pipe(
+          Layer.provide(configRpcServices),
+          Layer.provide(Layer.mock(NamedWorkspaceService.NamedWorkspaceService)({})),
+        ),
       ),
     );
     const configRequest = RpcMessage.RequestId("config");

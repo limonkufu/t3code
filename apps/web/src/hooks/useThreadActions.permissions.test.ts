@@ -9,6 +9,19 @@ import {
 import * as Cause from "effect/Cause";
 import { AsyncResult } from "effect/reactivity";
 import { beforeEach, describe, expect, it, vi } from "vite-plus/test";
+import { threadEnvironment } from "../state/threads";
+import { useOrchestrationCommand } from "../state/use-orchestration-command";
+
+vi.mock("../state/namedWorkspaces", () => ({
+  useWorkspaceScope: () => [null, () => {}],
+  readWorkspaceThreads: (threads: unknown) => threads,
+  useWorkspacePlacementCommands: () => ({
+    pin: useOrchestrationCommand(threadEnvironment.pin),
+    unpin: useOrchestrationCommand(threadEnvironment.unpin),
+    reorderPin: useOrchestrationCommand(threadEnvironment.reorderPin),
+    reorderActive: useOrchestrationCommand(threadEnvironment.reorderActive),
+  }),
+}));
 
 function deferred<T>() {
   let resolve!: (value: T) => void;

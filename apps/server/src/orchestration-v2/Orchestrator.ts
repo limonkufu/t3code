@@ -2522,6 +2522,7 @@ const makeOrchestrator = Effect.fn("orchestrationV2.Orchestrator.layer")(functio
       interactionMode: command.interactionMode,
       branch: command.branch,
       worktreePath: command.worktreePath,
+      ...(command.spaceId === undefined ? {} : { spaceId: command.spaceId }),
       activeProviderThreadId: null,
       pullRequests: [],
       ...(command.linkOrigin === undefined ? {} : { linkOrigin: command.linkOrigin }),
@@ -3236,18 +3237,13 @@ const makeOrchestrator = Effect.fn("orchestrationV2.Orchestrator.layer")(functio
         case "thread.unarchive":
           return { ...thread, archivedAt: null, updatedAt: now };
         case "thread.settle": {
-          const wasPinned = thread.pinnedAt != null;
-          const alreadySettled =
-            thread.settledOverride === "settled" && thread.settledAt !== null && !wasPinned;
+          const alreadySettled = thread.settledOverride === "settled" && thread.settledAt !== null;
           return {
             ...thread,
             settledOverride: "settled",
             settledAt: alreadySettled ? thread.settledAt : (command.settledAt ?? now),
             pullRequests: thread.pullRequests?.map((link) => withPullRequestWatch(link, undefined)),
             unsettledAt: null,
-            pinnedAt: null,
-            pinOrderKey: null,
-            activeOrderKey: null,
             snoozedUntil: null,
             snoozedAt: null,
             updatedAt:
@@ -3296,20 +3292,13 @@ const makeOrchestrator = Effect.fn("orchestrationV2.Orchestrator.layer")(functio
         }
         case "thread.pin": {
           const alreadyPinned = thread.pinnedAt != null;
-          const promotes = thread.settledOverride === "settled" || thread.snoozedUntil != null;
           return {
             ...thread,
             pinnedAt: alreadyPinned ? thread.pinnedAt : now,
             ...(alreadyPinned || command.orderKey === undefined
               ? {}
               : { pinOrderKey: command.orderKey }),
-            settledOverride:
-              thread.settledOverride === "settled" ? "active" : thread.settledOverride,
-            settledAt: thread.settledOverride === "settled" ? null : thread.settledAt,
-            snoozedUntil: null,
-            snoozedAt: null,
-            lastSnoozeWakeAt: thread.snoozedUntil == null ? thread.lastSnoozeWakeAt : now,
-            updatedAt: alreadyPinned && !promotes ? thread.updatedAt : now,
+            updatedAt: alreadyPinned ? thread.updatedAt : now,
           };
         }
         case "thread.unpin": {
@@ -3377,6 +3366,7 @@ const makeOrchestrator = Effect.fn("orchestrationV2.Orchestrator.layer")(functio
                 : {}),
             ...(command.branch === undefined ? {} : { branch: command.branch }),
             ...(command.worktreePath === undefined ? {} : { worktreePath: command.worktreePath }),
+            ...(command.spaceId === undefined ? {} : { spaceId: command.spaceId }),
             ...(command.linkedPullRequest === undefined
               ? {}
               : {

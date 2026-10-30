@@ -1,4 +1,9 @@
 import {
+  useWorkspacePlacementCommands,
+  readWorkspaceThreads,
+  useWorkspaceScope,
+} from "../state/namedWorkspaces";
+import {
   parseScopedThreadKey,
   scopeProjectRef,
   scopeThreadRef,
@@ -106,7 +111,7 @@ export class ThreadSnoozeBlockedError extends Schema.TaggedError<ThreadSnoozeBlo
 
 function topOfPinnedRunOrderKey(): string | undefined {
   let firstKey: string | null = null;
-  for (const shell of readThreadShells()) {
+  for (const shell of readWorkspaceThreads(readThreadShells())) {
     if (shell.pinnedAt == null || shell.pinOrderKey == null) continue;
     if (firstKey === null || shell.pinOrderKey < firstKey) firstKey = shell.pinOrderKey;
   }
@@ -242,6 +247,14 @@ function threadOperationFailure(target: ScopedThreadRef) {
 }
 
 export function useThreadActions() {
+  const [workspaceScope] = useWorkspaceScope();
+  const pinUndoKind = `pin:${workspaceScope === null ? "all" : JSON.stringify(workspaceScope)}`;
+  const {
+    pin: pinThreadMutation,
+    unpin: unpinThreadMutation,
+    reorderPin: reorderPinnedThreadMutation,
+    reorderActive: reorderActiveThreadMutation,
+  } = useWorkspacePlacementCommands();
   const archiveThreadMutation = useOrchestrationCommand(threadEnvironment.archive, {
     reportFailure: false,
   });
@@ -257,21 +270,11 @@ export function useThreadActions() {
   const unsettleThreadMutation = useOrchestrationCommand(threadEnvironment.unsettle, {
     reportFailure: false,
   });
-  const pinThreadMutation = useOrchestrationCommand(threadEnvironment.pin, {
-    reportFailure: false,
-  });
-  const unpinThreadMutation = useOrchestrationCommand(threadEnvironment.unpin, {
-    reportFailure: false,
-  });
+
   const setThreadAutoSettleMutation = useOrchestrationCommand(threadEnvironment.setAutoSettle, {
     reportFailure: false,
   });
-  const reorderPinnedThreadMutation = useOrchestrationCommand(threadEnvironment.reorderPin, {
-    reportFailure: false,
-  });
-  const reorderActiveThreadMutation = useOrchestrationCommand(threadEnvironment.reorderActive, {
-    reportFailure: false,
-  });
+
   const snoozeThreadMutation = useOrchestrationCommand(threadEnvironment.snooze, {
     reportFailure: false,
   });
@@ -659,10 +662,7 @@ export function useThreadActions() {
       );
     }
     const orderKey = opts.orderKey ?? topOfPinnedRunOrderKey();
-    ThreadUndo.invalidate("pin", scopedThreadKey(target));
-    // Pinning clears snooze, so older Settled or Snoozed undos would fight this pin.
-    ThreadUndo.invalidate("settle", scopedThreadKey(target));
-    ThreadUndo.invalidate("snooze", scopedThreadKey(target));
+    ThreadUndo.invalidate(pinUndoKind, scopedThreadKey(target));
     return pinThreadMutation({
       environmentId: target.environmentId,
       input: {
@@ -683,9 +683,10 @@ export function useThreadActions() {
         ),
       );
     }
-    const thread = readThreadShell(target);
+    const shell = readThreadShell(target);
+    const thread = shell ? readWorkspaceThreads([shell])[0] : undefined;
     const undoPlan = ThreadUndo.planThreadUndo("unpin", thread);
-    const action = ThreadUndo.begin("pin", scopedThreadKey(target));
+    const action = ThreadUndo.begin(pinUndoKind, scopedThreadKey(target));
     const result = await unpinThreadMutation({
       environmentId: target.environmentId,
       input: { threadId: target.threadId },
@@ -719,9 +720,6 @@ export function useThreadActions() {
     const nowIso = new Date().toISOString();
     const wokeAt = resolved ? threadWokeAt(resolved.thread, { now: nowIso }) : null;
     const undoPlan = ThreadUndo.planThreadUndo("settle", resolved?.thread);
-    // An older unpin/snooze Undo would re-pin or re-snooze, and the server
-    // treats either as a promotion that un-settles; settling supersedes them.
-    ThreadUndo.invalidate("pin", scopedThreadKey(target));
     ThreadUndo.invalidate("snooze", scopedThreadKey(target));
     const action = ThreadUndo.begin("settle", scopedThreadKey(target));
     const result = await settleThreadMutation({
@@ -774,7 +772,7 @@ export function useThreadActions() {
         ),
       );
     }
-    ThreadUndo.invalidate("pin", scopedThreadKey(target));
+    ThreadUndo.invalidate(pinUndoKind, scopedThreadKey(target));
     return reorderPinnedThreadMutation({
       environmentId: target.environmentId,
       input: { threadId: target.threadId, orderKey },

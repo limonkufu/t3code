@@ -7,6 +7,8 @@ import * as Schema from "effect/Schema";
 import * as Semaphore from "effect/Semaphore";
 import {
   EnvironmentId,
+  NamedWorkspaceId,
+  ThreadId,
   PullRequestInvolvement,
   PullRequestListFilters,
   PullRequestListState,
@@ -77,6 +79,25 @@ const WorkspaceSelections = Schema.Struct({
 });
 export type WorkspaceSelections = typeof WorkspaceSelections.Type;
 
+const NamedWorkspaceScope = Schema.NullOr(
+  Schema.Struct({ environmentId: EnvironmentId, workspaceId: NamedWorkspaceId }),
+);
+const NamedWorkspaceView = Schema.Struct({
+  query: Schema.optional(Schema.String),
+  projectSortOrder: Schema.optional(Schema.Literals(["updated_at", "created_at"])),
+  filters: Schema.optional(ThreadListFilters),
+  collapsedProjectGroups: Schema.optional(Schema.Array(Schema.String)),
+  settledExpanded: Schema.optional(Schema.Boolean),
+  snoozedExpanded: Schema.optional(Schema.Boolean),
+  workingExpanded: Schema.optional(Schema.Boolean),
+  scrollOffset: Schema.optional(Schema.Number),
+  lastCheckout: Schema.optional(Schema.String),
+  lastThread: Schema.optional(Schema.Struct({ environmentId: EnvironmentId, threadId: ThreadId })),
+});
+export type NamedWorkspaceView = typeof NamedWorkspaceView.Type;
+const NamedWorkspaceViews = Schema.Record(Schema.String, NamedWorkspaceView);
+const isNamedWorkspaceScope = Schema.is(NamedWorkspaceScope);
+const isNamedWorkspaceViews = Schema.is(NamedWorkspaceViews);
 const isThreadListFilters = Schema.is(ThreadListFilters);
 const isWorkspaceSelections = Schema.is(WorkspaceSelections);
 const isPullRequestListPreferences = Schema.is(PullRequestListPreferences);
@@ -128,6 +149,9 @@ export interface Preferences {
   readonly threadListFilters?: ThreadListFilters;
   readonly pullRequestListFilters?: PullRequestListPreferences;
   readonly workspaceSelections?: WorkspaceSelections;
+  readonly namedWorkspaceScope?: typeof NamedWorkspaceScope.Type;
+  readonly namedWorkspaceIncludeOwned?: boolean;
+  readonly namedWorkspaceViews?: typeof NamedWorkspaceViews.Type;
 }
 
 export class MobilePreferencesLoadError extends Schema.TaggedError<MobilePreferencesLoadError>()(
@@ -205,6 +229,9 @@ function sanitizePreferences(parsed: Preferences): Preferences {
     threadListFilters?: ThreadListFilters;
     pullRequestListFilters?: PullRequestListPreferences;
     workspaceSelections?: WorkspaceSelections;
+    namedWorkspaceScope?: typeof NamedWorkspaceScope.Type;
+    namedWorkspaceIncludeOwned?: boolean;
+    namedWorkspaceViews?: typeof NamedWorkspaceViews.Type;
   } = {};
 
   if (Array.isArray(parsed.hiddenNavigationTabs)) {
@@ -356,6 +383,12 @@ function sanitizePreferences(parsed: Preferences): Preferences {
   if (isPullRequestListPreferences(parsed.pullRequestListFilters)) {
     preferences.pullRequestListFilters = parsed.pullRequestListFilters;
   }
+  if (isNamedWorkspaceScope(parsed.namedWorkspaceScope))
+    preferences.namedWorkspaceScope = parsed.namedWorkspaceScope;
+  if (typeof parsed.namedWorkspaceIncludeOwned === "boolean")
+    preferences.namedWorkspaceIncludeOwned = parsed.namedWorkspaceIncludeOwned;
+  if (isNamedWorkspaceViews(parsed.namedWorkspaceViews))
+    preferences.namedWorkspaceViews = parsed.namedWorkspaceViews;
   if (isWorkspaceSelections(parsed.workspaceSelections)) {
     preferences.workspaceSelections = parsed.workspaceSelections;
   }

@@ -21,6 +21,7 @@ import type * as ServerConfig from "../config.ts";
 import type * as ServerSettings from "../serverSettings.ts";
 import { makeIsManagedWorktreePath } from "../worktreesDirectory.ts";
 import { withWorkspaceLease } from "../workspace/workspaceLease.ts";
+import * as NamedWorkspaceStore from "../workspace/NamedWorkspaceStore.ts";
 import {
   isCheckpointRestoreIsolated,
   SHARED_WORKSPACE_RESTORE_MESSAGE,
@@ -118,10 +119,12 @@ export const layer: Layer.Layer<
   | ServerConfig.ServerConfig
   | ServerSettings.ServerSettingsService
   | ThreadCommandExecutor.ThreadCommandExecutor
+  | NamedWorkspaceStore.NamedWorkspaceStore
 > = Layer.effect(
   CheckpointRollbackServiceV2,
   Effect.gen(function* () {
     const checkpoints = yield* CheckpointServiceV2;
+    const workspaces = yield* NamedWorkspaceStore.NamedWorkspaceStore;
     const gitWorkflow = yield* GitWorkflowService.GitWorkflowService;
     const eventSink = yield* EventSinkV2;
     const ids = yield* IdAllocator.IdAllocatorV2;
@@ -360,7 +363,12 @@ export const layer: Layer.Layer<
           const thread = yield* projections.getThread(input.threadId);
           yield* thread.worktreePath === null
             ? execute(input)
-            : withWorkspaceLease(path.resolve(thread.worktreePath), execute(input));
+            : withWorkspaceLease(
+                path.resolve(thread.worktreePath),
+                workspaces
+                  .assertAvailable(path.resolve(thread.worktreePath))
+                  .pipe(Effect.andThen(execute(input))),
+              );
         },
         (effect, input) =>
           effect.pipe(

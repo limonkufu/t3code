@@ -134,6 +134,7 @@ describe("isAutoSettlementCandidate", () => {
     expect(
       ThreadSettlementService.isAutoSettlementCandidate(
         shell({
+          pinnedAt: at(-DAY_MS),
           pendingBackgroundTasks: [
             { taskId: "dev", kind: "command", description: "vp run dev --share" },
           ],

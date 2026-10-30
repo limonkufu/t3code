@@ -9,6 +9,18 @@ import { beforeEach, describe, expect, it, vi } from "vite-plus/test";
 
 import type { ThreadActionMenuId } from "../components/threadActionMenu.logic";
 
+vi.mock("../state/namedWorkspaces", async () => {
+  const { Atom } = await import("effect/reactivity");
+  return {
+    readWorkspaceThreads: (threads: unknown) => threads,
+    spaceAssignmentTargetAtom: Atom.make(null),
+  };
+});
+vi.mock("../state/presentation", async () => {
+  const { Atom } = await import("effect/reactivity");
+  return { environmentPresentations: { serverConfigsAtom: Atom.make(new Map()) } };
+});
+
 function deferred<T>() {
   let resolve!: (value: T) => void;
   const promise = new Promise<T>((complete) => {

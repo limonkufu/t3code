@@ -1,3 +1,4 @@
+import { revealNamedWorkspaceThread } from "../../state/namedWorkspaces";
 import { EnvironmentId, ThreadId } from "@t3tools/contracts";
 import { useNavigation } from "@react-navigation/native";
 import { useAdaptiveWorkspaceLayout } from "../layout/adaptive-workspace-context";
@@ -17,6 +18,7 @@ export function startOpeningDetail(detail: WorkspaceDetail) {
   const environmentId = first(detail.params?.environmentId);
   const threadId = first(detail.params?.threadId);
   if (environmentId && threadId) {
+    revealNamedWorkspaceThread(EnvironmentId.make(environmentId), ThreadId.make(threadId));
     startOpeningEnvironmentThread(EnvironmentId.make(environmentId), ThreadId.make(threadId));
   }
 }

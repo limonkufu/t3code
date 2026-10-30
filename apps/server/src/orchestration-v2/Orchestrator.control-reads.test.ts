@@ -4,6 +4,7 @@ import {
   MessageId,
   EventId,
   NodeId,
+  NamedWorkspaceId,
   type OrchestrationV2DomainEvent,
   PlanId,
   ProjectId,
@@ -281,6 +282,7 @@ it.effect(
         interactionMode: "default",
         branch: null,
         worktreePath: null,
+        spaceId: NamedWorkspaceId.make("space:a"),
         createdBy: "user",
         creationSource: "web",
       });
@@ -311,7 +313,9 @@ it.effect(
         commandId: CommandId.make("rename-control"),
         threadId,
         title: "After",
+        spaceId: NamedWorkspaceId.make("space:b"),
       });
+      assert.equal((yield* projections.getThread(threadId)).spaceId, "space:b");
       yield* orchestrator.dispatch({
         type: "thread.runtime-mode.set",
         commandId: CommandId.make("mode-control"),
@@ -493,9 +497,11 @@ it.effect(
         commandId: CommandId.make("workspace-control"),
         threadId,
         worktreePath: "/new-repo",
+        spaceId: null,
       });
       const thread = yield* projections.getThread(threadId);
       assert.equal(thread.title, "After");
+      assert.equal(thread.spaceId, null);
       assert.equal(thread.modelSelection.model, "gpt-6");
       assert.equal(thread.runtimeMode, "approval-required");
       assert.deepEqual(
@@ -1327,9 +1333,17 @@ it.effect("explicit settle clears snooze atomically and stays idempotent after r
         threadId,
         snoozedUntil: DateTime.formatIso(snoozedUntil),
       });
+      yield* orchestrator.dispatch({
+        type: "thread.pin",
+        commandId: CommandId.make(`pin-snoozed-${round}`),
+        threadId,
+        orderKey: "a",
+      });
       assert.deepInclude(yield* projections.getThread(threadId), {
         snoozedUntil,
         snoozedAt: yield* DateTime.now,
+        pinnedAt: now,
+        pinOrderKey: "a",
       });
       yield* TestClock.adjust("1 second");
       const commandId = CommandId.make(`settle-snoozed-${round}`);
@@ -1337,6 +1351,8 @@ it.effect("explicit settle clears snooze atomically and stays idempotent after r
       const expected = {
         settledOverride: "settled",
         settledAt,
+        pinnedAt: now,
+        pinOrderKey: "a",
         snoozedUntil: null,
         snoozedAt: null,
         updatedAt: yield* DateTime.now,

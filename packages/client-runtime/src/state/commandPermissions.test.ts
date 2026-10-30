@@ -15,6 +15,9 @@ import {
   AuthSettingsWriteScope,
   AuthSourceControlWriteScope,
   ThreadId,
+  CommandId,
+  NamedWorkspaceId,
+  ProjectId,
   EnvironmentId,
   ScheduledTaskId,
   WS_METHODS,
@@ -253,6 +256,55 @@ it.effect(
         );
         expect(registry.get(prepare.permissionAtom(env, input))).toBe(true);
         yield* prepare.authorize(registry, env, input);
+        const workspaces = createCommandPermissions(runtime, WS_METHODS.namedWorkspacesMutate);
+        const workspaceCommand = {
+          commandId: CommandId.make("workspace-command"),
+          workspaceId: NamedWorkspaceId.make("workspace"),
+          type: "archive" as const,
+        };
+        yield* workspaces.authorize(registry, env, workspaceCommand);
+        registry.set(sessions(env), AsyncResult.success(grant(true)));
+        expect(registry.get(workspaces.permissionAtom(env, workspaceCommand))).toBe(false);
+        expect(
+          (yield* workspaces.authorize(registry, env, workspaceCommand).pipe(Effect.flip))
+            .requiredPermission,
+        ).toBe(AuthSourceControlWriteScope);
+        const associationCommand = {
+          ...workspaceCommand,
+          type: "associate-project" as const,
+          projectId: ProjectId.make("project"),
+          branch: "feature/account",
+          remember: true,
+        };
+        expect(registry.get(workspaces.permissionAtom(env, associationCommand))).toBe(false);
+        expect(
+          (yield* workspaces.authorize(registry, env, associationCommand).pipe(Effect.flip))
+            .requiredPermission,
+        ).toBe(AuthSourceControlWriteScope);
+        yield* workspaces.authorize(registry, env, {
+          ...workspaceCommand,
+          type: "set-project-association",
+          projectId: ProjectId.make("project"),
+          choice: "separate",
+        });
+        yield* workspaces.authorize(registry, env, {
+          ...workspaceCommand,
+          type: "rename",
+          name: "Account",
+        });
+        for (const type of [
+          "pin-thread",
+          "unpin-thread",
+          "reorder-pinned-thread",
+          "reorder-active-thread",
+        ] as const) {
+          yield* workspaces.authorize(registry, env, {
+            ...workspaceCommand,
+            type,
+            threadId: ThreadId.make("thread"),
+            orderKey: "a",
+          });
+        }
       }),
     ),
 );

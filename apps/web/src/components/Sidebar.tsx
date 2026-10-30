@@ -1,3 +1,12 @@
+import { spaceAssignmentTargetAtom } from "../state/namedWorkspaces";
+import {
+  useWorkspaceScopedThreads,
+  useWorkspaceCheckoutFilter,
+  useWorkspacePreference,
+  useWorkspaceScope,
+  readWorkspaceNewThreadCheckout,
+} from "../state/namedWorkspaces";
+import { NamedWorkspaceScopeHeader } from "./NamedWorkspaceNavigation";
 import { attachSidebarTree, SIDEBAR_TREE_PROPS } from "../lib/sidebarTree";
 import { type EnvironmentId, type ScopedProjectRef } from "@t3tools/contracts";
 import type { EnvironmentServerConfig } from "@t3tools/client-runtime/connection";
@@ -124,7 +133,6 @@ import { registerSettleAndAdvance } from "../settleAndAdvance";
 import { startNewThreadFromContext } from "../lib/chatThreadActions";
 import { useBoringSidebarEnabled, useClientSettings } from "../hooks/useSettings";
 import { useCopyToClipboard } from "../hooks/useCopyToClipboard";
-import { useLocalStorage } from "../hooks/useLocalStorage";
 import { useNowMinute } from "../hooks/useNowMinute";
 import {
   useEnvironmentIdentities,
@@ -316,6 +324,9 @@ const SETTLED_SHELF_EXPANDED_KEY = "t3code:sidebar:settled-expanded";
 const SNOOZED_SHELF_EXPANDED_KEY = "t3code:sidebar:snoozed-expanded";
 const WORKING_SHELF_EXPANDED_KEY = "t3code:sidebar:working-expanded";
 
+const sidebarExpansionSchema = Schema.Record(Schema.String, Schema.Boolean);
+const sidebarProjectScopeSchema = Schema.Array(Schema.String);
+
 const inboxReturns = createInboxReturnTracker();
 
 type SidebarOptimisticDrop = {
@@ -425,24 +436,38 @@ function useSidebarThreads(input: {
   const nowMinute = useNowMinute();
   // Minute-quantized clocks would delay second-precise snooze wakes by up to a minute.
   const snoozeWakeClock = useSnoozeWakeClock(threads);
-  const [settledShelfExpanded, setSettledShelfExpanded] = useLocalStorage(
+  const [settledShelfExpanded, setSettledShelfExpanded] = useWorkspacePreference(
     SETTLED_SHELF_EXPANDED_KEY,
     false,
     Schema.Boolean,
   );
-  const [snoozedShelfExpanded, setSnoozedShelfExpanded] = useLocalStorage(
+  const [snoozedShelfExpanded, setSnoozedShelfExpanded] = useWorkspacePreference(
     SNOOZED_SHELF_EXPANDED_KEY,
     false,
     Schema.Boolean,
   );
-  const [workingShelfExpanded, setWorkingShelfExpanded] = useLocalStorage(
+  const [workingShelfExpanded, setWorkingShelfExpanded] = useWorkspacePreference(
     WORKING_SHELF_EXPANDED_KEY,
     false,
     Schema.Boolean,
   );
-  // Shared with the old per-project sidebar, so folders keep their open state.
-  const projectExpandedById = useUiStateStore((store) => store.projectExpandedById);
-  const setProjectExpanded = useUiStateStore((store) => store.setProjectExpanded);
+  const defaultProjectExpanded = useUiStateStore((store) => store.projectExpandedById);
+  const setDefaultProjectExpanded = useUiStateStore((store) => store.setProjectExpanded);
+  const [workspaceScope] = useWorkspaceScope();
+  const [workspaceExpanded, setWorkspaceExpanded] = useWorkspacePreference(
+    "t3code:sidebar:project-expanded",
+    {} as Record<string, boolean>,
+    sidebarExpansionSchema,
+  );
+  const projectExpandedById = workspaceScope === null ? defaultProjectExpanded : workspaceExpanded;
+  const setProjectExpanded = (keys: readonly string[], expanded: boolean) => {
+    if (workspaceScope === null) setDefaultProjectExpanded(keys, expanded);
+    else
+      setWorkspaceExpanded((current) => ({
+        ...current,
+        ...Object.fromEntries(keys.map((key) => [key, expanded])),
+      }));
+  };
   const [settledTail, setSettledTail] = useState({
     scopeKey: projectScopeKey,
     count: SETTLED_TAIL_INITIAL_COUNT,
@@ -739,10 +764,9 @@ function isOptimisticDropReleased(input: {
     return true;
   }
   if (optimisticDrop.order === null) {
-    // Settle emits unpin/unsnooze too; hold projected fields and sort times until the whole move completes.
+    // Settling parks the row while retaining its saved pin and ordering.
     if (
       canonicalSection === optimisticDrop.section &&
-      thread.pinnedAt == null &&
       (!optimisticDrop.clearsSnooze || thread.snoozedUntil == null)
     ) {
       return true;
@@ -977,8 +1001,18 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
   );
   const environmentMachineById = useEnvironmentMachines();
   const projectGroupsRef = useRef(projectGroups);
-  const persistedProjectScopeKeys = useUiStateStore((store) => store.sidebarProjectScopeKeys);
-  const setPersistedProjectScopeKeys = useUiStateStore((store) => store.setSidebarProjectScopeKeys);
+  const defaultProjectScopeKeys = useUiStateStore((store) => store.sidebarProjectScopeKeys);
+  const setDefaultProjectScopeKeys = useUiStateStore((store) => store.setSidebarProjectScopeKeys);
+  const [workspaceScope] = useWorkspaceScope();
+  const [workspaceProjectScopeKeys, setWorkspaceProjectScopeKeys] = useWorkspacePreference(
+    "t3code:sidebar:project-scope",
+    [] as string[],
+    sidebarProjectScopeSchema,
+  );
+  const persistedProjectScopeKeys =
+    workspaceScope === null ? defaultProjectScopeKeys : workspaceProjectScopeKeys;
+  const setPersistedProjectScopeKeys =
+    workspaceScope === null ? setDefaultProjectScopeKeys : setWorkspaceProjectScopeKeys;
   const [projectScopeMenuState, dispatchProjectScopeMenu] = useReducer(
     reduceSidebarProjectScopeMenuState,
     { open: false, query: "" },
@@ -993,7 +1027,11 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
   // Hold dropped rows until server placement is confirmed; block another pickup from replacing the hold.
   const [optimisticDrop, setOptimisticDrop] = useState<SidebarOptimisticDrop | null>(null);
   const threadSearchInputRef = useRef<HTMLInputElement>(null);
-  const [threadSearchQuery, setThreadSearchQuery] = useState("");
+  const [threadSearchQuery, setThreadSearchQuery] = useWorkspacePreference(
+    "t3code:sidebar:thread-search",
+    "",
+    Schema.String,
+  );
   const [searchHighlightKey, setSearchHighlightKey] = useState<string | null>(null);
   const searchEnvironmentIds = useConnectedEnvironmentIds();
   const queuePendingFileDrop = useSidebarPendingFileDropStore((s) => s.queuePendingFileDrop);
@@ -1063,7 +1101,7 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
             ),
           ),
         );
-  const threads = useQuietThreadShells();
+  const threads = useWorkspaceScopedThreads(useQuietThreadShells());
   const routeRowThreadKey =
     routeThreadRef === null
       ? null
@@ -1146,9 +1184,11 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
       : { projectIds: scopedProjectRefs.map((projectRef) => projectRef.projectId) },
   );
   const routeDraftIdForRows = routeTarget?.kind === "draft" ? routeTarget.draftId : null;
+  const checkoutMatchesWorkspace = useWorkspaceCheckoutFilter();
   const visibleDraftSessionCount = useComposerDraftStore((store) => {
     let count = 0;
     for (const [draftKey, session] of Object.entries(store.draftThreadsByThreadKey)) {
+      if (!checkoutMatchesWorkspace(session)) continue;
       if (session.promotedTo != null) {
         continue;
       }
@@ -2042,15 +2082,13 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
       sourceSection: activeSection,
       section: target.section,
       occurredAt: new Date().toISOString(),
-      clearsSnooze:
-        plan.kind === "pin" ||
-        plan.kind === "settle" ||
-        (plan.kind === "move-active" && plan.unsnooze),
+      clearsSnooze: plan.kind === "settle" || (plan.kind === "move-active" && plan.unsnooze),
       order: plan.kind === "settle" ? null : plan.order,
       keysAtDrop: target.section === "active" ? activeKeysById : pinnedKeysById,
       assignedKeys: new Map(assignments.map(({ id, orderKey }) => [id, orderKey])),
     };
-    setOptimisticDrop(drop);
+    if (plan.kind !== "pin" || (activeSection !== "snoozed" && activeSection !== "settled"))
+      setOptimisticDrop(drop);
     void (async () => {
       const run = async (
         operation: Promise<AtomCommandResult<unknown, unknown>>,
@@ -2558,6 +2596,7 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
                 canShareWithGuestAtom(threadRef.environmentId),
               ),
               supports: {
+                spaces: serverConfigs.get(thread.environmentId)?.namedWorkspaces === true,
                 settlement: configLoaded,
                 autoSettleOptOut: supportsAutoSettleOptOut,
                 snooze: configLoaded,
@@ -2585,6 +2624,9 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
           return;
         }
         switch (clicked.value) {
+          case "move-to-space":
+            appAtomRegistry.set(spaceAssignmentTargetAtom, threadRef);
+            return;
           case "filter-by-project":
             if (threadProjectGroup) {
               setProjectScopeKeys(
@@ -2841,6 +2883,19 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
   const showJumpHints = useThreadJumpHintsVisible(shouldShowJumpHintsNow);
 
   const handleNewThreadClick = (event?: ReactMouseEvent) => {
+    const checkout = readWorkspaceNewThreadCheckout();
+    if (checkout && !event?.shiftKey) {
+      if (isMobile) setOpenMobile(false);
+      void handleNewThread(
+        { environmentId: checkout.environmentId, projectId: checkout.projectId },
+        {
+          branch: checkout.branch,
+          worktreePath: checkout.path,
+          envMode: checkout.path ? "worktree" : "local",
+        },
+      );
+      return;
+    }
     if (
       boringSidebarEnabled ||
       shouldCreateNewThreadInCurrentProject(event?.shiftKey ?? false, projectGroups.length)
@@ -2870,6 +2925,7 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
         className="min-h-full"
         fixedHeader={
           <SidebarGroup className="z-[1]">
+            <NamedWorkspaceScopeHeader />
             <SidebarThreadHeader
               searchFieldRef={headerSearchRef}
               hasProjects={projectGroups.length > 0}

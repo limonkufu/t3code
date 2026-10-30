@@ -1,3 +1,4 @@
+import { readWorkspaceNewThreadCheckout } from "../state/namedWorkspaces";
 import { AuthPreviewOperateScope, type EnvironmentId } from "@t3tools/contracts";
 import type { AnyRouter } from "@tanstack/react-router";
 
@@ -120,7 +121,12 @@ export function installChatRouteCommands(router: AnyRouter): () => void {
         // The boring sidebar's folders already show the context, so it starts in
         // the current project like the legacy sidebar did.
         const { boringSidebarEnabled, legacySidebarEnabled } = getClientSettings();
-        if (!boringSidebarEnabled && !legacySidebarEnabled && readProjectGroupCount() > 1) {
+        if (
+          !readWorkspaceNewThreadCheckout() &&
+          !boringSidebarEnabled &&
+          !legacySidebarEnabled &&
+          readProjectGroupCount() > 1
+        ) {
           claim(event);
           openCommandPalette({ open: "new-thread-in" });
           return;

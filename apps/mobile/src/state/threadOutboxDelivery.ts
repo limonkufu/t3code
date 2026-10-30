@@ -1018,6 +1018,7 @@ export function createThreadOutboxDelivery(): {
       environmentId: queuedMessage.environmentId,
       input: buildProjectThreadStartTurnInput({
         projectId: creation.projectId,
+        ...(creation.spaceId === undefined ? {} : { spaceId: creation.spaceId }),
         projectCwd,
         threadId: queuedMessage.threadId,
         commandId: queuedMessage.commandId,

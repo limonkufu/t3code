@@ -1,6 +1,11 @@
 import { describe, expect, it, vi } from "vite-plus/test";
 import type { RuntimeMode } from "@t3tools/contracts";
 
+vi.mock("../state/namedWorkspaces", () => ({
+  readWorkspaceNewThreadCheckout: () => null,
+  readWorkspaceScope: () => null,
+}));
+
 const testState = vi.hoisted(() => {
   let completeProjectFileRead: (value: null) => void = () => undefined;
   let projectFileRead = Promise.resolve<null>(null);

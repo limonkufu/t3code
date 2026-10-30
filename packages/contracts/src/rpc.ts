@@ -1,3 +1,4 @@
+import { ProjectId } from "./baseSchemas.ts";
 import {
   OrchestrationV2SearchThreadError,
   OrchestrationV2SearchThreadInput,
@@ -34,6 +35,14 @@ import {
   ChatGptHandoffState,
 } from "./providerSetup.ts";
 import * as Schema from "effect/Schema";
+import {
+  NamedWorkspace,
+  NamedWorkspaceId,
+  NamedWorkspaceMutation,
+  NamedWorkspaceArchivePreview,
+  NamedWorkspaceError,
+  NamedWorkspaceSuggestion,
+} from "./namedWorkspace.ts";
 import * as Rpc from "effect/rpc/Rpc";
 import * as RpcGroup from "effect/rpc/RpcGroup";
 import * as RpcMiddleware from "effect/rpc/RpcMiddleware";
@@ -492,6 +501,10 @@ export const WS_METHODS = {
   serverGetStorageCleanupReport: "server.getStorageCleanupReport",
   serverGetDatabaseStorage: "server.getDatabaseStorage",
   peerLinksList: "peerLinks.list",
+  namedWorkspacesSubscribe: "namedWorkspaces.subscribe",
+  namedWorkspacesMutate: "namedWorkspaces.mutate",
+  namedWorkspacesPreviewArchive: "namedWorkspaces.previewArchive",
+  namedWorkspacesSuggestions: "namedWorkspaces.suggestions",
   peerLinksLink: "peerLinks.link",
   peerLinksUnlink: "peerLinks.unlink",
   peerLinksAnswerRequest: "peerLinks.answerRequest",
@@ -1913,7 +1926,33 @@ export class RpcScopeAuthorization extends RpcMiddleware.Service<RpcScopeAuthori
   { error: EnvironmentAuthorizationError },
 ) {}
 
+const WsNamedWorkspacesSubscribe = Rpc.make(WS_METHODS.namedWorkspacesSubscribe, {
+  payload: Schema.Struct({}),
+  success: Schema.Array(NamedWorkspace),
+  error: EnvironmentAuthorizationError,
+  stream: true,
+});
+const WsNamedWorkspacesMutate = Rpc.make(WS_METHODS.namedWorkspacesMutate, {
+  payload: NamedWorkspaceMutation,
+  success: NamedWorkspace,
+  error: Schema.Union([NamedWorkspaceError, EnvironmentAuthorizationError]),
+});
+const WsNamedWorkspacesPreviewArchive = Rpc.make(WS_METHODS.namedWorkspacesPreviewArchive, {
+  payload: Schema.Struct({ workspaceId: NamedWorkspaceId }),
+  success: NamedWorkspaceArchivePreview,
+  error: Schema.Union([NamedWorkspaceError, EnvironmentAuthorizationError]),
+});
+const WsNamedWorkspacesSuggestions = Rpc.make(WS_METHODS.namedWorkspacesSuggestions, {
+  payload: Schema.Struct({ projectId: ProjectId }),
+  success: Schema.Array(NamedWorkspaceSuggestion),
+  error: Schema.Union([NamedWorkspaceError, EnvironmentAuthorizationError]),
+});
+
 export const WsRpcGroup = RpcGroup.make(
+  WsNamedWorkspacesSubscribe,
+  WsNamedWorkspacesMutate,
+  WsNamedWorkspacesPreviewArchive,
+  WsNamedWorkspacesSuggestions,
   WsGuestShareCreateRpc,
   WsServerProbeRpc,
   WsServerGetConfigRpc,

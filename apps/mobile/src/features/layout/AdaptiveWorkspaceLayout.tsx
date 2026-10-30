@@ -1,3 +1,4 @@
+import { readWorkspaceNewThreadCheckout } from "../../state/namedWorkspaces";
 import {
   WorkspaceColumnsRendererContext,
   WorkspacePresentationHostContext,
@@ -551,6 +552,19 @@ function AdaptiveWorkspaceLayoutContent(
     Platform.OS === "android" && androidSettingsOpen && !layout.usesSplitView;
   // Reads the open page when pressed, so the layout context doesn't change on every navigation.
   const handleStartNewTask = () => {
+    const checkout = readWorkspaceNewThreadCheckout();
+    if (checkout) {
+      handleSelectThreadRoute({
+        draft: {
+          requestId: uuidv4(),
+          environmentId: checkout.environmentId,
+          projectId: checkout.projectId,
+          ...(checkout.branch === null ? {} : { branch: checkout.branch }),
+          ...(checkout.path === null ? {} : { worktreePath: checkout.path }),
+        },
+      });
+      return;
+    }
     const state = rootStackState(navigation);
     const currentRoute = workspaceRoutesOf(
       state?.routes.slice(0, state.index + 1) ?? [],

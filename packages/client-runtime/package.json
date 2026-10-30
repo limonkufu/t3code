@@ -3,6 +3,10 @@
   "private": true,
   "type": "module",
   "exports": {
+    "./state/namedWorkspaces": {
+      "types": "./src/state/namedWorkspaces.ts",
+      "default": "./src/state/namedWorkspaces.ts"
+    },
     "./zip/bounded-zip": {
       "types": "./src/zip/boundedZip.ts",
       "default": "./src/zip/boundedZip.ts"

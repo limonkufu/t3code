@@ -14,6 +14,14 @@ import {
 import { environmentServerConfigsAtom } from "./server";
 import { environmentThreadShells } from "./threads";
 
+vi.mock("./namedWorkspaces", async () => {
+  const { Atom } = await import("effect/reactivity");
+  return {
+    namedWorkspaces: { catalogAtom: Atom.make([]) },
+    readWorkspaceThreads: (threads: unknown) => threads,
+  };
+});
+
 vi.mock("./atom-registry", async () => {
   const { AtomRegistry } = await import("effect/reactivity");
   return { appAtomRegistry: AtomRegistry.make() };

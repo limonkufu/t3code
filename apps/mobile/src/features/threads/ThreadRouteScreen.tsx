@@ -881,6 +881,7 @@ function ThreadRouteContent(
       input: buildProjectThreadStartTurnInput({
         ...metadata,
         projectId: selectedThread.projectId,
+        ...(selectedThread.spaceId === undefined ? {} : { spaceId: selectedThread.spaceId }),
         projectCwd: selectedThreadProject.workspaceRoot,
         text: setupMessage.text,
         titleText: selectedThread.title,
