@@ -1,3 +1,8 @@
+import {
+  useWorkspacePlacementCommands,
+  readWorkspaceThreads,
+  useNamedWorkspaceScope,
+} from "../../state/namedWorkspaces";
 import type { ThreadMoveDestination } from "../threads/threadOrder";
 import type { EnvironmentThreadShell } from "@t3tools/client-runtime/state/shell";
 import * as ThreadUndo from "@t3tools/client-runtime/state/thread-undo";
@@ -209,10 +214,17 @@ export function useThreadListActions(): {
   readonly regenerateThreadTitle: (thread: EnvironmentThreadShell) => Promise<boolean>;
 } {
   const executeAction = useThreadActionExecutor();
+  const [workspaceScope] = useNamedWorkspaceScope();
+  const pinUndoKind = `pin:${workspaceScope === null ? "all" : JSON.stringify(workspaceScope)}`;
+  const {
+    pin: pinMutation,
+    unpin: unpinMutation,
+    reorderPin: reorderPinnedMutation,
+    reorderActive: reorderActiveMutation,
+  } = useWorkspacePlacementCommands();
   const snoozeMutation = useAtomCommand(threadEnvironment.snooze, { reportFailure: false });
   const unsnoozeMutation = useAtomCommand(threadEnvironment.unsnooze, { reportFailure: false });
-  const pinMutation = useAtomCommand(threadEnvironment.pin, { reportFailure: false });
-  const unpinMutation = useAtomCommand(threadEnvironment.unpin, { reportFailure: false });
+
   const setAutoSettleMutation = useAtomCommand(threadEnvironment.setAutoSettle, {
     reportFailure: false,
   });
@@ -253,7 +265,7 @@ export function useThreadListActions(): {
                     input: { threadId: thread.id, snoozedUntil: step.snoozedUntil },
                   });
                   if (result._tag === "Failure") {
-                    const error = Cause.squash(result.cause);
+                    const error = Cause.squash<unknown>(result.cause);
                     Dialog.alert(
                       "Could not restore snooze",
                       error instanceof Error ? error.message : "The thread could not be snoozed.",
@@ -279,7 +291,6 @@ export function useThreadListActions(): {
     const plan = ThreadUndo.planThreadUndo("settle", thread);
     let claim: ReturnType<typeof ThreadUndo.begin> | undefined;
     const succeeded = await executeAction("settle", thread, () => {
-      ThreadUndo.invalidate("pin", key);
       ThreadUndo.invalidate("snooze", key);
       claim = ThreadUndo.begin("settle", key);
     });
@@ -332,7 +343,7 @@ export function useThreadListActions(): {
       );
       if (result._tag === "Failure") {
         claim.finish();
-        const error = Cause.squash(result.cause);
+        const error = Cause.squash<unknown>(result.cause);
         Dialog.alert(
           "Could not snooze thread",
           error instanceof Error && error.message.trim().length > 0
@@ -375,7 +386,7 @@ export function useThreadListActions(): {
         (result) => result._tag === "Success",
       );
       if (result._tag === "Failure") {
-        const error = Cause.squash(result.cause);
+        const error = Cause.squash<unknown>(result.cause);
         Dialog.alert(
           "Could not wake thread",
           error instanceof Error && error.message.trim().length > 0
@@ -401,17 +412,16 @@ export function useThreadListActions(): {
       return false;
     }
     selectionHaptic();
-    const shells = appAtomRegistry.get(environmentThreadShells.threadShellsAtom);
+    const shells = readWorkspaceThreads(
+      appAtomRegistry.get(environmentThreadShells.threadShellsAtom),
+    );
     let firstKey: string | null = null;
     for (const shell of shells) {
       if (shell.pinnedAt == null || shell.pinOrderKey == null) continue;
       if (firstKey === null || shell.pinOrderKey < firstKey) firstKey = shell.pinOrderKey;
     }
     const orderKey = restoreOrderKey ?? pinOrderKeyBetween(null, firstKey) ?? undefined;
-    ThreadUndo.invalidate("pin", scopedThreadKey(thread.environmentId, thread.id));
-    // Pinning clears snooze, so older Settled or Snoozed undos would fight this pin.
-    ThreadUndo.invalidate("settle", scopedThreadKey(thread.environmentId, thread.id));
-    ThreadUndo.invalidate("snooze", scopedThreadKey(thread.environmentId, thread.id));
+    ThreadUndo.invalidate(pinUndoKind, scopedThreadKey(thread.environmentId, thread.id));
     const result = await withThreadDismissal(
       scopedThreadKey(thread.environmentId, thread.id),
       () =>
@@ -422,7 +432,7 @@ export function useThreadListActions(): {
       (result) => result._tag === "Success",
     );
     if (result._tag === "Failure") {
-      const error = Cause.squash(result.cause);
+      const error = Cause.squash<unknown>(result.cause);
       Dialog.alert(
         "Could not pin thread",
         error instanceof Error && error.message.trim().length > 0
@@ -444,7 +454,7 @@ export function useThreadListActions(): {
     }
     selectionHaptic();
     const plan = ThreadUndo.planThreadUndo("unpin", thread);
-    const claim = ThreadUndo.begin("pin", scopedThreadKey(thread.environmentId, thread.id));
+    const claim = ThreadUndo.begin(pinUndoKind, scopedThreadKey(thread.environmentId, thread.id));
     const result = await withThreadDismissal(
       scopedThreadKey(thread.environmentId, thread.id),
       () =>
@@ -456,7 +466,7 @@ export function useThreadListActions(): {
     );
     if (result._tag === "Failure") {
       claim.finish();
-      const error = Cause.squash(result.cause);
+      const error = Cause.squash<unknown>(result.cause);
       Dialog.alert(
         "Could not unpin thread",
         error instanceof Error && error.message.trim().length > 0
@@ -482,7 +492,7 @@ export function useThreadListActions(): {
       input: { threadId: thread.id, enabled },
     });
     if (result._tag === "Failure") {
-      const error = Cause.squash(result.cause);
+      const error = Cause.squash<unknown>(result.cause);
       Dialog.alert(
         "Could not update auto-settle",
         error instanceof Error && error.message.trim().length > 0
@@ -515,7 +525,7 @@ export function useThreadListActions(): {
         input: { threadId: thread.id, regenerateTitle: true },
       });
       if (result._tag === "Failure") {
-        const error = Cause.squash(result.cause);
+        const error = Cause.squash<unknown>(result.cause);
         Dialog.alert(
           "Could not regenerate title",
           error instanceof Error && error.message.trim().length > 0
@@ -543,7 +553,7 @@ export function useThreadListActions(): {
         input: { threadId: thread.id, title: resolution.title },
       }).then((result) => {
         if (result._tag === "Success") return;
-        const error = Cause.squash(result.cause);
+        const error = Cause.squash<unknown>(result.cause);
         Dialog.alert(
           "Could not rename thread",
           error instanceof Error && error.message.trim().length > 0
@@ -562,16 +572,13 @@ export function useThreadListActions(): {
   };
 
   // Plan against the complete section so filtering does not change a move.
-  const reorderPinnedMutation = useAtomCommand(threadEnvironment.reorderPin, {
-    reportFailure: false,
-  });
-  const reorderActiveMutation = useAtomCommand(threadEnvironment.reorderActive, {
-    reportFailure: false,
-  });
+
   const moveThread = async (thread: EnvironmentThreadShell, direction: ThreadMoveDestination) => {
     if (!checkThreadOperationPermission(thread, "Could not move thread")) return false;
     if (getPendingThreadOrder() !== null || appAtomRegistry.get(threadDropBusyAtom)) return false;
-    const shells = appAtomRegistry.get(environmentThreadShells.navigationThreadShellsAtom);
+    const shells = readWorkspaceThreads(
+      appAtomRegistry.get(environmentThreadShells.navigationThreadShellsAtom),
+    );
     const current = shells.find(
       (row) => row.id === thread.id && row.environmentId === thread.environmentId,
     );
@@ -644,16 +651,13 @@ export function useThreadListActions(): {
           const orderKey = assignments.find(
             ({ id }) => id === scopedThreadKey(thread.environmentId, thread.id),
           )?.orderKey;
-          // Same as pinThread: older Unpinned, Settled, or Snoozed undos would fight this pin.
-          ThreadUndo.invalidate("pin", scopedThreadKey(thread.environmentId, thread.id));
-          ThreadUndo.invalidate("settle", scopedThreadKey(thread.environmentId, thread.id));
-          ThreadUndo.invalidate("snooze", scopedThreadKey(thread.environmentId, thread.id));
+          ThreadUndo.invalidate(pinUndoKind, scopedThreadKey(thread.environmentId, thread.id));
           const result = await pinMutation({
             environmentId: thread.environmentId,
             input: { threadId: thread.id, ...(orderKey === undefined ? {} : { orderKey }) },
           });
           if (result._tag === "Failure") {
-            Dialog.alert("Could not pin thread", String(Cause.squash(result.cause)));
+            Dialog.alert("Could not pin thread", String(Cause.squash<unknown>(result.cause)));
             return false;
           }
         } else {
@@ -674,13 +678,13 @@ export function useThreadListActions(): {
         const target = shellByKey.get(assignment.id);
         if (target === undefined) continue;
         if (!checkThreadOperationPermission(target, "Could not move thread")) return false;
-        ThreadUndo.invalidate("pin", scopedThreadKey(target.environmentId, target.id));
+        ThreadUndo.invalidate(pinUndoKind, scopedThreadKey(target.environmentId, target.id));
         const result = await reorder({
           environmentId: target.environmentId,
           input: { threadId: target.id, orderKey: assignment.orderKey },
         });
         if (result._tag === "Failure") {
-          const error = Cause.squash(result.cause);
+          const error = Cause.squash<unknown>(result.cause);
           Dialog.alert(
             "Could not move thread",
             error instanceof Error && error.message.trim().length > 0

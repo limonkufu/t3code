@@ -1,3 +1,4 @@
+import { useWorkspaceScopedThreads } from "../../state/namedWorkspaces";
 import type { EnvironmentServerConfig } from "@t3tools/client-runtime/connection";
 import type { EnvironmentThreadShell } from "@t3tools/client-runtime/state/shell";
 import type { Dispatch } from "react";
@@ -167,7 +168,8 @@ export function useThreadLifecycle(input: ThreadLifecycleInput) {
   });
 
   const serverConfigLoaded = serverConfig !== null;
-  const activeThreadPinned = serverConfigLoaded && activeThreadShell?.pinnedAt != null;
+  const scopedThread = useWorkspaceScopedThreads(activeThreadShell ? [activeThreadShell] : [])[0];
+  const activeThreadPinned = serverConfigLoaded && scopedThread?.pinnedAt != null;
   // A clock read in render would stay frozen in the compiler's cache, so the
   // snooze checks read a snapshot that moves when the wake time changes or passes.
   const snoozeClock = new Date(

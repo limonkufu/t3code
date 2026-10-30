@@ -49,6 +49,39 @@ in a new thread's model picker to add or remove them. A regular click returns to
 single model. Choose a base branch and send. Each selection starts a separate thread
 and worktree while you stay in the new thread composer. This requires a Git project.
 
+## Group work in Spaces
+
+Spaces collect related threads across projects in one environment. Create one from the sidebar's
+Space menu, or choose **New Space** while assigning a draft. **All threads** stays available and
+includes Space threads by default; its menu can hide them without disabling notifications.
+
+Choose a Space above the draft composer before sending. New threads use the selected Space by
+default. Selecting a project keeps that project selected; when the Space has a checkout for it,
+that checkout is reused. A Space works with a project's current checkout too, so creating branches
+or learning a naming convention is optional.
+
+Use **Move to Space…** in a thread's context menu or title menu, or **Move thread to Space…** in the
+command palette. On mobile, long-press the thread. Choose **No Space** to remove its grouping.
+Moving changes only that thread's grouping and preserves its checkout and history.
+
+Collapse the rail to focus on one Space; its header menu still lets you switch Spaces. Each Space
+and All threads have independent pins and order, shared across connected devices. Search, filters,
+collapsed sections, last thread, and scroll are remembered on each device. Snooze, Settle, and
+Archive apply everywhere. Moving a thread preserves its saved placement in other Spaces.
+
+Dedicated checkouts are optional. Open **Manage Spaces**, then expand **Checkouts** or **Add a
+dedicated checkout**. An existing full branch-name match can suggest adding a project. Remember
+Add or Keep separate for that project and Space, or reset it with **Ask next time**. Explicit Space
+choices take precedence over remembered suggestions.
+
+Archiving a Space archives its member threads and removes its clean, exclusive worktrees. Checkouts
+still used by threads outside that Space are kept, including project roots. The archive review shows
+what will be removed and what will be kept. Commit or copy local files and finish running work before
+removing an exclusive checkout. Branches and conversation history are retained.
+
+Restore an archived Space from management. You can also review retained checkout cleanup after other
+threads stop using those checkouts. Cleanup keeps protecting shared checkouts and local files.
+
 ## Pin and reorder threads
 
 Pin a thread from its menu to keep it above your active work.
@@ -68,7 +101,8 @@ files directly; see [Attach files](./composer.md#attach-files).
 On web and desktop, pinning or unpinning a thread keeps the sidebar at your current
 scroll position instead of following the thread to its new place in the list.
 
-Pinning does not prevent automatic settlement. Settling a thread removes its pin.
+Pinning only changes placement. It does not wake a snoozed or settled thread or prevent automatic
+settlement. Parked threads retain their pins and return to their saved positions when active again.
 
 On web and desktop, drag a thread between sections to change its state. Drag a thread up into
 the pinned section to pin it at the spot you drop it; drag a pinned thread down into the active
@@ -80,8 +114,8 @@ Pinned and active boundary labels appear only while dragging, without moving the
 other rows slide aside to show where the thread will land. When you cross into another section,
 the dragged thread shows the action the drop performs, with its icon: **Pin**, **Unpin**,
 **Settle**, **Un-settle**, or **Wake**. Its status and hover actions hide during the drag. A pinned
-thread keeps its pin only while it stays in the pinned section; once it leaves, the badge takes
-over. Reordering within the same section shows no badge. When there are no pins, drag to the top
+thread dragged into Active loses its pin. Settling or snoozing instead keeps that pin saved while
+the thread is parked. Reordering within the same section shows no badge. When there are no pins, drag to the top
 edge to pin a thread. Section labels stay readable for the whole drag, and the section the
 thread is over takes the accent color. Section labels also
 identify empty sections and a collapsed settled shelf.
@@ -91,7 +125,8 @@ spot where the thread will land. Drops into either section keep the position you
 mobile, open a thread's menu and choose **Arrange threads**. Drag a handle within or between
 **Pinned** and **Active** to reorder, pin, or unpin. Drop onto the **Settled** divider to
 settle a thread. The dragged card shows the action before you release it. Expand **Snoozed**
-or **Settled** to drag a parked thread back into either live section. Each drop saves; close the sheet to return to the thread list.
+or **Settled** to drag a parked thread into Active and wake it. Dropping it into Pinned saves its
+pin without waking it. Each drop saves; close the sheet to return to the thread list.
 **Move up** and **Move down** are also available in the thread menu. The server
 saves the order, so it survives a refresh and appears on your other connected devices.
 
@@ -100,9 +135,8 @@ On web and desktop, the list also animates section changes made with thread acti
 preference. While dragging, rows follow the insertion gap without replaying a second transition
 after the drop.
 
-New threads appear above the active threads you have arranged. Settling clears a thread's active
-position, so using **Un-settle** returns it to the top. Pinning and snoozing preserve its active
-position until you move it again. Thread activity does not change the order. The settled shelf
+New threads appear above the active threads you have arranged. Settling, pinning, and snoozing
+preserve a thread's saved active position. Using **Un-settle** restores its place in that view. Thread activity does not change the order. The settled shelf
 continues to use settlement time.
 
 If dragging is unavailable for one environment, update the T3 Code server running in that

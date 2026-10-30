@@ -56,13 +56,12 @@ export function planThreadUndo(
     action: "pin",
     ...(thread?.pinOrderKey != null ? { orderKey: thread.pinOrderKey } : {}),
   };
-  // Pinning clears snooze on the server; restore it after restoring pin placement.
   const snooze =
     thread?.snoozedUntil != null
       ? [{ action: "snooze" as const, snoozedUntil: thread.snoozedUntil }]
       : [];
-  if (action === "unpin") return [pin, ...snooze];
-  return [{ action: "unsettle" }, ...(thread?.pinnedAt != null ? [pin] : []), ...snooze];
+  if (action === "unpin") return [pin];
+  return [{ action: "unsettle" }, ...snooze];
 }
 
 export async function executeThreadUndo<Result>(

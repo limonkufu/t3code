@@ -1,3 +1,4 @@
+import { DraftSpacePicker } from "../SpaceAssignmentDialog";
 import { useComposerTypingGuard } from "./useComposerTypingGuard";
 import { insertAttachmentReferencesForDraft } from "./composerAttachmentReferences";
 import { DESKTOP_PASTE_AS_TEXT_EVENT } from "../../lib/desktopPasteAsText";
@@ -111,6 +112,7 @@ import {
 import type { ThreadSyncPhase } from "../../threadSync";
 import { ComposerBanner } from "./ComposerBanner";
 import { ComposerSurface } from "./ComposerSurface";
+import { WorkspaceAssociationNotice } from "./WorkspaceAssociationNotice";
 import { ComposerBannerStack, type ComposerBannerStackItem } from "./ComposerBannerStack";
 import {
   attachmentsToReleaseOnUploadCapabilityLoss,
@@ -3436,9 +3438,18 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
             restingControlsHost,
           )
         : null}
+      {routeKind === "draft" && draftId && <DraftSpacePicker draftId={draftId} />}
       <ComposerBanner.Dock>
         <ComposerBanner.Column>
           <ComposerBannerStack items={shelfItems} />
+          {!hasBlockingComposerTopDrawer && activeProjectId && (
+            <WorkspaceAssociationNotice
+              key={`${environmentId}:${activeProjectId}:${draftId ?? activeThread?.id}`}
+              environmentId={environmentId}
+              projectId={activeProjectId}
+              draftId={routeKind === "draft" ? draftId : null}
+            />
+          )}
           {showComposerTopDrawer ? (
             <ComposerBanner.Attachment>
               <ComposerBanner.Root data-chat-composer-top-drawer="true" variant="info">

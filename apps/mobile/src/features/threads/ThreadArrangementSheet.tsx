@@ -1,3 +1,4 @@
+import { useWorkspaceScopedThreads } from "../../state/namedWorkspaces";
 import { SheetHeader } from "../../components/ui/SheetHeader";
 import { appAtomRegistry } from "../../state/atom-registry";
 import { useAtomValue } from "@effect/atom-react";
@@ -162,7 +163,9 @@ function DragHandle(props: {
 }
 
 function ThreadArrangementSheet(props: { onClose: () => void }) {
-  const threads = useAtomValue(environmentThreadShells.navigationThreadShellsAtom);
+  const threads = useWorkspaceScopedThreads(
+    useAtomValue(environmentThreadShells.navigationThreadShellsAtom),
+  );
   const configs = useAtomValue(environmentServerConfigsAtom);
   const queuedThreadKeys = useAtomValue(queuedThreadKeysAtom);
   const pendingOrder = useAtomValue(pendingThreadOrderAtom);

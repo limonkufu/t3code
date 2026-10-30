@@ -1,3 +1,5 @@
+import { DraftSpacePicker } from "./SpacePicker";
+import { WorkspaceAssociationNotice } from "./WorkspaceAssociationNotice";
 import { useSidebarWorkspaceTabs } from "../workspace/useSystemWorkspaceTabBar";
 import { Button } from "../../components/ui/Button";
 import * as Dialog from "../../components/ui/Dialog";
@@ -821,6 +823,15 @@ export const ThreadComposer = function ThreadComposer(props: ThreadComposerProps
         style={{ maxWidth: props.contentMaxWidth }}
       >
         {props.draftControls}
+        {props.isDraft && (
+          <DraftSpacePicker environmentId={props.environmentId} draftKey={composerDraftKey} />
+        )}
+        <WorkspaceAssociationNotice
+          key={`${props.environmentId}:${props.selectedThread.projectId}:${composerDraftKey}`}
+          environmentId={props.environmentId}
+          projectId={props.selectedThread.projectId}
+          draftKey={props.isDraft ? composerDraftKey : null}
+        />
         {!isSubmissionLocked &&
         composerMenu.trigger &&
         (composerMenu.items.length > 0 || composerMenu.trigger.kind === "pull-request") ? (

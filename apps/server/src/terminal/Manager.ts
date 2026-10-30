@@ -2,6 +2,7 @@
 import * as NodeCrypto from "node:crypto";
 
 import { withWorkspaceLease } from "../workspace/workspaceLease.ts";
+import * as NamedWorkspaceStore from "../workspace/NamedWorkspaceStore.ts";
 import {
   DEFAULT_TERMINAL_ID,
   DEFAULT_MAX_TERMINAL_BUFFER_BYTES,
@@ -1405,6 +1406,7 @@ function normalizedRuntimeEnv(
 }
 
 interface TerminalManagerOptions {
+  assertWorkspaceAvailable?: (path: string) => Effect.Effect<void, TerminalCwdStatError>;
   logsDir: string;
   historyLineLimit?: number;
   historyByteLimit?: number;
@@ -1488,6 +1490,7 @@ export const make = Effect.fn("TerminalManager.make")(function* () {
   const nativeTelemetry = yield* NativeTelemetryClient.NativeTelemetryClient;
   const serverSettings = yield* ServerSettings.ServerSettingsService;
   const path = yield* Path.Path;
+  const workspaces = yield* NamedWorkspaceStore.NamedWorkspaceStore;
   const resolveProviderInstanceEnvironment = Effect.fn(
     "terminal.resolveProviderInstanceEnvironment",
   )((rawProviderInstanceId: string, env: Record<string, string> | undefined) =>
@@ -1500,6 +1503,10 @@ export const make = Effect.fn("TerminalManager.make")(function* () {
   );
   return yield* makeWithOptions({
     logsDir: terminalLogsDir,
+    assertWorkspaceAvailable: (cwd) =>
+      workspaces
+        .assertAvailable(cwd)
+        .pipe(Effect.mapError((cause) => new TerminalCwdStatError({ cwd, cause }))),
     ptyAdapter,
     processTable: nativeTelemetry.processTable.pipe(
       Effect.mapError(
@@ -2947,7 +2954,10 @@ export const makeWithOptions = Effect.fn("TerminalManager.makeWithOptions")(func
   const openLocked = (input: TerminalOpenInput) =>
     withWorkspaceLease(
       path.resolve(input.worktreePath ?? input.cwd),
-      openWithWorkspaceLease(input),
+      (
+        options.assertWorkspaceAvailable?.(path.resolve(input.worktreePath ?? input.cwd)) ??
+        Effect.void
+      ).pipe(Effect.andThen(openWithWorkspaceLease(input))),
     );
 
   const open: TerminalManager["Service"]["open"] = (input) =>

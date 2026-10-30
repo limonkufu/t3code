@@ -1,6 +1,11 @@
+import {
+  namedWorkspaces,
+  revealNamedWorkspaceThread,
+  useWorkspaceThreadPlacements,
+} from "./namedWorkspaces";
 import { useAtomValue } from "@effect/atom-react";
 import { useRoute, type RouteProp } from "@react-navigation/native";
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import {
   EnvironmentId,
   ThreadId,
@@ -160,13 +165,28 @@ function useResolvedThreadSelection(params: ThreadSelectionRouteParams | undefin
     needsDetail ? (selectedThreadDetailRef?.threadId ?? null) : null,
   );
   const selectedThreadDetail = Option.getOrNull(selectedThreadDetailState.data);
-  const selectedThread =
+  const unscopedSelectedThread =
     selectedThreadShell ??
     (selectedThreadRef !== null && selectedThreadDetail !== null
       ? threadDetailToShell(selectedThreadRef.environmentId, selectedThreadDetail)
       : pendingCreation !== null
         ? pendingThreadCreationShell(pendingCreation.message)
         : null);
+  const selectedThread =
+    useWorkspaceThreadPlacements(unscopedSelectedThread ? [unscopedSelectedThread] : [])[0] ?? null;
+  const readyWorkspaces = useAtomValue(namedWorkspaces.readyEnvironmentIdsAtom);
+  const revealedThread = useRef<string | null>(null);
+  // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- notification and deep-link routes reveal the owning workspace once their thread data arrives
+  useEffect(() => {
+    if (
+      !selectedThread ||
+      !readyWorkspaces.has(selectedThread.environmentId) ||
+      revealedThread.current === selectedThreadKey
+    )
+      return;
+    revealedThread.current = selectedThreadKey;
+    revealNamedWorkspaceThread(selectedThread.environmentId, selectedThread.id);
+  }, [selectedThreadKey, selectedThread, readyWorkspaces, revealedThread]);
   const resolvedCreation = resolvePendingThreadCreation({
     threadKey: selectedThreadKey,
     pending: pendingCreation,

@@ -18,6 +18,7 @@ import type { UploadedMobileAttachment } from "./attachmentUpload";
 
 export interface ProjectThreadStartTurnSpec {
   readonly projectId: ProjectId;
+  readonly spaceId?: import("@t3tools/contracts").NamedWorkspaceId | null;
   readonly projectCwd: string;
   readonly threadId: string;
   readonly commandId: string;
@@ -67,6 +68,7 @@ export function buildProjectThreadStartTurnInput(spec: ProjectThreadStartTurnSpe
         interactionMode: spec.interactionMode,
         branch: spec.branch,
         worktreePath: isWorktree ? null : spec.worktreePath,
+        ...(spec.spaceId === undefined ? {} : { spaceId: spec.spaceId }),
         createdAt: spec.createdAt,
       },
       ...(isWorktree

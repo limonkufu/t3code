@@ -379,9 +379,6 @@ export function createThreadEnvironmentAtoms<R, E>(
             settledOverride: "settled",
             settledAt: thread.settledOverride === "settled" ? (thread.settledAt ?? now) : now,
             unsettledAt: null,
-            activeOrderKey: null,
-            pinnedAt: null,
-            pinOrderKey: null,
             snoozedAt: null,
             snoozedUntil: null,
           },
@@ -418,15 +415,6 @@ export function createThreadEnvironmentAtoms<R, E>(
       ...thread,
       pinnedAt: thread.pinnedAt ?? now,
       pinOrderKey: thread.pinnedAt == null ? (input.orderKey ?? null) : thread.pinOrderKey,
-      ...(thread.settledOverride === "settled"
-        ? {
-            settledOverride: "active" as const,
-            settledAt: null,
-            unsettledAt: now,
-          }
-        : {}),
-      snoozedUntil: null,
-      snoozedAt: null,
     })),
     unpin: optimistic.wrap(commands.unpin, (thread) => ({
       ...thread,

@@ -1,3 +1,13 @@
+import {
+  useNamedWorkspaceView,
+  useNamedWorkspaceScope,
+  saveNamedWorkspaceScroll,
+} from "../../state/namedWorkspaces";
+import { NamedWorkspaceSwitcher } from "../threads/NamedWorkspaceSwitcher";
+import {
+  useWorkspaceScopedThreads,
+  useWorkspaceScopedPendingTasks,
+} from "../../state/namedWorkspaces";
 import { useActiveNewTask } from "../../state/active-new-task";
 import { AppActivityIndicator } from "../../components/ui/AppActivityIndicator";
 import { useAndroidControlSizing } from "../../components/ui/useAndroidControlSizing";
@@ -239,6 +249,8 @@ function renderHomeScrollView(props: ScrollViewProps) {
 }
 
 export function HomeScreen(props: HomeScreenProps) {
+  const threads = useWorkspaceScopedThreads(props.threads);
+  const pendingTasks = useWorkspaceScopedPendingTasks(props.pendingTasks);
   const usesNativeWorkspaceColumns = useNativeWorkspaceColumnsSupported();
   const workspace = useWorkspaceTabs();
   const [initialScrollOffset] = useState(() => workspace?.getScrollOffset("threads") ?? 0);
@@ -315,15 +327,24 @@ export function HomeScreen(props: HomeScreenProps) {
   const onFabScroll = useFabScroll();
   const listRef = useRef<LegendListRef>(null);
   const searchMode = workspace?.state.tabs.threads.searchMode;
-  const restoredOffset = workspace?.state.tabs.threads.scrollOffset;
+  const [namedScope] = useNamedWorkspaceScope();
+  const [namedView] = useNamedWorkspaceView();
+  const restoredOffset = namedScope
+    ? (namedView.scrollOffset ?? 0)
+    : (namedView.scrollOffset ?? workspace?.state.tabs.threads.scrollOffset);
+  const restoredView = useRef<string | null>(null);
   // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- restores the thread list's saved scroll offset through the list ref when search goes back to resting
   useEffect(() => {
-    if (searchMode !== "resting" || restoredOffset === undefined) return;
+    if ((searchMode !== undefined && searchMode !== "resting") || restoredOffset === undefined)
+      return;
+    const key = `${namedScope?.environmentId ?? "all"}:${namedScope?.workspaceId ?? "all"}:${searchMode}`;
+    if (restoredView.current === key) return;
+    restoredView.current = key;
     listRef.current?.scrollToOffset({
       offset: restoredOffset - (Platform.OS === "ios" ? insets.top : 0),
       animated: false,
     });
-  }, [searchMode, insets.top, restoredOffset]);
+  }, [searchMode, insets.top, restoredOffset, namedScope?.workspaceId, namedScope?.environmentId]);
   const swipeRowActivation = createSwipeRowActivation();
   const activateVisibleRows = (rows: ReadonlyArray<ThreadListV2ListItem>) => {
     const state = listRef.current?.getState();
@@ -338,6 +359,10 @@ export function HomeScreen(props: HomeScreenProps) {
   useEffect(() => () => clearTimeout(activationTimerRef.current), []);
   const handleListScroll = (event: NativeSyntheticEvent<NativeScrollEvent>) => {
     onFabScroll?.(event);
+    saveNamedWorkspaceScroll(
+      Math.max(0, event.nativeEvent.contentOffset.y + (Platform.OS === "ios" ? insets.top : 0)),
+      namedScope,
+    );
     if (workspace)
       workspace.recordScrollOffset(
         "threads",
@@ -384,7 +409,7 @@ export function HomeScreen(props: HomeScreenProps) {
       ? {}
       : { projectIds: v2ScopedProjectGroup.projectRefs.map((ref) => ref.projectId) },
   );
-  const threadSearchMatchByKey = useThreadListSearchMatches(props.threads, threadSearch);
+  const threadSearchMatchByKey = useThreadListSearchMatches(threads, threadSearch);
   const v2ProjectTitleByProjectKey = new Map(
     projectScopes.flatMap((scope) =>
       scope.projectRefs.map(
@@ -425,7 +450,7 @@ export function HomeScreen(props: HomeScreenProps) {
     toggleSnoozedShelf,
     toggleWorkingShelf,
   } = useThreadListV2ShelfPreferences();
-  const now = useThreadListNow(props.threads);
+  const now = useThreadListNow(threads);
   const listEnvironments = useAtomValue(threadListEnvironmentsAtom);
   const {
     providersByEnvironmentId,
@@ -447,8 +472,8 @@ export function HomeScreen(props: HomeScreenProps) {
     contentOnlyThreadKeys,
     olderSettledShelf,
   } = useThreadListV2({
-    threads: props.threads,
-    pendingTasks: props.pendingTasks,
+    threads: threads,
+    pendingTasks,
     environmentId: props.selectedEnvironmentId,
     projectRefs: v2ScopedProjectGroup === null ? null : v2ScopedProjectGroup.projectRefs,
     searchQuery: props.searchQuery,
@@ -643,8 +668,8 @@ export function HomeScreen(props: HomeScreenProps) {
   };
 
   const hasAnyThreads =
-    props.threads.some((thread) => thread.archivedAt === null) ||
-    props.pendingTasks.length > 0 ||
+    threads.some((thread) => thread.archivedAt === null) ||
+    pendingTasks.length > 0 ||
     threadListV2Layout.settledCount > 0;
   const selectedEnvironmentLabel =
     props.selectedEnvironmentId === null
@@ -707,6 +732,7 @@ export function HomeScreen(props: HomeScreenProps) {
   const v2ListHeader = (
     <>
       {listHeader}
+      <NamedWorkspaceSwitcher />
       {Platform.OS === "ios" && workspace ? (
         <ThreadListFilters
           gutter={primaryColumn ? 8 : 0}

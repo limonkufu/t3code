@@ -1,7 +1,20 @@
+import { SpaceAssignmentDialog } from "./SpaceAssignmentDialog";
+import {
+  useWorkspaceScope,
+  workspaceScrollOffset,
+  namedWorkspaces,
+  useWorkspaceRouteNavigation,
+  rememberWorkspaceNavigation,
+  useWorkspaceRailExpanded,
+} from "../state/namedWorkspaces";
+import { workspaceScopeKey } from "@t3tools/client-runtime/state/namedWorkspaces";
 import { useAtomValue } from "@effect/atom-react";
+import { NamedWorkspaceRail } from "./NamedWorkspaceNavigation";
 import * as Schema from "effect/Schema";
 import {
   useEffect,
+  useLayoutEffect,
+  useRef,
   useState,
   useSyncExternalStore,
   type CSSProperties,
@@ -17,7 +30,11 @@ import {
   threadUndoClaimsShortcut,
   undoLatestThreadAction,
 } from "../hooks/showThreadUndoNotice";
-import { getLocalStorageItem, removeLocalStorageItem } from "../hooks/useLocalStorage";
+import {
+  getLocalStorageItem,
+  removeLocalStorageItem,
+  setLocalStorageItem,
+} from "../hooks/useLocalStorage";
 import {
   isRichTextBoldShortcut,
   resolveShortcutCommand,
@@ -401,6 +418,31 @@ function SidebarControl() {
 }
 
 export function AppSidebarLayout({ children }: { children: ReactNode }) {
+  useWorkspaceRouteNavigation();
+  const workspaceRouter = useRouter();
+  const pendingWorkspaceScroll = useRef<{
+    timer: ReturnType<typeof setTimeout>;
+    save: () => void;
+  } | null>(null);
+  // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- flushes the pending scroll persistence timer when the sidebar unmounts
+  useEffect(
+    () => () => {
+      if (pendingWorkspaceScroll.current) {
+        clearTimeout(pendingWorkspaceScroll.current.timer);
+        pendingWorkspaceScroll.current.save();
+      }
+    },
+    [],
+  );
+  const threadPaneRef = useRef<HTMLDivElement>(null);
+  const [workspaceScope] = useWorkspaceScope();
+  const scopeKey = workspaceScope === null ? "all" : workspaceScopeKey(workspaceScope);
+  // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- restoring a scope synchronizes its scroll viewport with local navigation history
+  useLayoutEffect(() => {
+    const viewport = threadPaneRef.current?.querySelector('[data-slot="scroll-area-viewport"]');
+    const offset = workspaceScrollOffset(scopeKey);
+    if (viewport && offset !== undefined) viewport.scrollTop = offset;
+  }, [scopeKey]);
   const sidebarArea = workspaceAreaProps("sidebar", 0, "Threads");
   const [sidebarRouteReveal] = useState<SidebarRouteReveal>(() => ({
     observedKey: null,
@@ -413,18 +455,34 @@ export function AppSidebarLayout({ children }: { children: ReactNode }) {
   const routePanelAnimationsActive = panelAnimationsActive && !panelAnimationsSuppressed;
   const isMacosDesktop = isElectron && isMacPlatform(navigator.platform);
   const [sidebarWidth, setSidebarWidth] = useState(readInitialThreadSidebarWidth);
+  const [workspaceSidebarWidth, setWorkspaceSidebarWidth] = useState(() => {
+    try {
+      return (
+        getLocalStorageItem(`${THREAD_SIDEBAR_WIDTH_STORAGE_KEY}:workspaces`, Schema.Finite) ??
+        readInitialThreadSidebarWidth() + 48
+      );
+    } catch {
+      return readInitialThreadSidebarWidth() + 48;
+    }
+  });
   // A clamped drag may not change width, so viewport changes need a separate subscription.
   const viewportWidth = useSyncExternalStore(subscribeToViewportWidth, readViewportWidth);
   const [brandWidth, setBrandWidth] = useState(0);
-  const sidebarMinimumWidth = resolveThreadSidebarMinimumWidth(brandWidth);
+  const hasWorkspaces = useAtomValue(namedWorkspaces.catalogAtom).length > 0;
+  const [workspaceRailExpanded] = useWorkspaceRailExpanded();
+  const sidebarMinimumWidth =
+    resolveThreadSidebarMinimumWidth(brandWidth) +
+    (hasWorkspaces && workspaceRailExpanded ? 48 : 0);
   const sidebarMaximumWidth = resolveThreadSidebarMaximumWidth(viewportWidth, sidebarMinimumWidth);
   const resetSidebarWidth = () => {
     try {
       removeLocalStorageItem(THREAD_SIDEBAR_WIDTH_STORAGE_KEY);
+      removeLocalStorageItem(`${THREAD_SIDEBAR_WIDTH_STORAGE_KEY}:workspaces`);
     } catch (error) {
       console.error("Could not clear persisted thread sidebar width.", error);
     }
     setSidebarWidth(resolveInitialThreadSidebarWidth(null, viewportWidth));
+    setWorkspaceSidebarWidth(resolveInitialThreadSidebarWidth(null, viewportWidth) + 48);
   };
   const isWindowFullscreen = useSyncExternalStore(
     subscribeToWindowFullscreen,
@@ -436,7 +494,7 @@ export function AppSidebarLayout({ children }: { children: ReactNode }) {
       : {}
   ) as CSSProperties;
   const sidebarProviderStyle = {
-    "--sidebar-width": `${clampThreadSidebarWidth(sidebarWidth, sidebarMinimumWidth, sidebarMaximumWidth)}px`,
+    "--sidebar-width": `${clampThreadSidebarWidth(hasWorkspaces ? workspaceSidebarWidth - (workspaceRailExpanded ? 0 : 48) : sidebarWidth, sidebarMinimumWidth, sidebarMaximumWidth)}px`,
     "--panel-animation-duration": `${panelAnimationDurationMs}ms`,
     ...windowControlsInsetStyle,
   } as CSSProperties;
@@ -463,15 +521,60 @@ export function AppSidebarLayout({ children }: { children: ReactNode }) {
             shouldAcceptWidth: ({ currentWidth, nextWidth, wrapper }) =>
               nextWidth <= currentWidth ||
               wrapper.clientWidth - nextWidth >= THREAD_MAIN_CONTENT_MIN_WIDTH,
-            storageKey: THREAD_SIDEBAR_WIDTH_STORAGE_KEY,
-            onResize: setSidebarWidth,
+            ...(hasWorkspaces ? {} : { storageKey: THREAD_SIDEBAR_WIDTH_STORAGE_KEY }),
+            onResize: (width) => {
+              if (!hasWorkspaces) {
+                setSidebarWidth(width);
+                return;
+              }
+              const expandedWidth = width + (workspaceRailExpanded ? 0 : 48);
+              setWorkspaceSidebarWidth(expandedWidth);
+              try {
+                setLocalStorageItem(
+                  `${THREAD_SIDEBAR_WIDTH_STORAGE_KEY}:workspaces`,
+                  expandedWidth,
+                  Schema.Finite,
+                );
+              } catch (error) {
+                console.error("Could not persist workspace sidebar width.", error);
+              }
+            },
           }}
           style={windowControlsInsetStyle}
         >
-          <ThreadSidebar routeReveal={sidebarRouteReveal} />
+          <div className="flex min-h-0 flex-1">
+            <NamedWorkspaceRail />
+            <div
+              ref={threadPaneRef}
+              className="flex min-w-0 flex-1 flex-col"
+              onScrollCapture={(event) => {
+                const target = event.target;
+                if (
+                  target instanceof HTMLElement &&
+                  target.matches('[data-slot="scroll-area-viewport"]')
+                ) {
+                  if (pendingWorkspaceScroll.current)
+                    clearTimeout(pendingWorkspaceScroll.current.timer);
+                  const href = workspaceRouter.state.location.href;
+                  const scrollTop = target.scrollTop;
+                  const save = () => rememberWorkspaceNavigation(workspaceScope, href, scrollTop);
+                  pendingWorkspaceScroll.current = {
+                    save,
+                    timer: setTimeout(() => {
+                      save();
+                      pendingWorkspaceScroll.current = null;
+                    }, 160),
+                  };
+                }
+              }}
+            >
+              <ThreadSidebar routeReveal={sidebarRouteReveal} />
+            </div>
+          </div>
           <SidebarRail onDoubleClick={resetSidebarWidth} />
         </Sidebar>
         {children}
+        <SpaceAssignmentDialog />
         <BackgroundThreadAnnouncer />
         <SidebarControl />
       </SidebarProvider>

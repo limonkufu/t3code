@@ -21,6 +21,16 @@ const router = vi.hoisted(() => ({
   navigate: vi.fn(async () => {}),
   state: { matches: [{ params: {} as Record<string, string> }] },
 }));
+vi.mock("../state/namedWorkspaces", () => ({
+  useWorkspaceScope: () => [null, () => {}],
+  readWorkspaceThreads: (threads: unknown) => threads,
+  useWorkspacePlacementCommands: () => ({
+    pin: commands.pin,
+    unpin: commands.unpin,
+    reorderPin: vi.fn(),
+    reorderActive: vi.fn(),
+  }),
+}));
 vi.mock("../state/use-atom-query-runner", () => ({ useAtomQueryRunner: () => vi.fn() }));
 vi.mock("../state/session", async (original) => ({
   ...(await original<typeof import("../state/session")>()),
@@ -128,7 +138,7 @@ describe("concurrent thread action Undo", () => {
 });
 
 describe("unpin Undo", () => {
-  it("restores the original snooze after restoring the pin", async () => {
+  it("restores the pin without changing the existing snooze", async () => {
     threadShell.pinnedAt = "2026-01-01T00:00:00.000Z";
     threadShell.snoozedUntil = "2030-01-01T09:00:00.000Z";
     await useThreadActions().unpinThread(target);
@@ -137,13 +147,8 @@ describe("unpin Undo", () => {
       environmentId: target.environmentId,
       input: { threadId: target.threadId, orderKey: "a0" },
     });
-    expect(commands.snooze).toHaveBeenCalledExactlyOnceWith({
-      environmentId: target.environmentId,
-      input: { threadId: target.threadId, snoozedUntil: threadShell.snoozedUntil },
-    });
-    expect(commands.pin.mock.invocationCallOrder[0]).toBeLessThan(
-      commands.snooze.mock.invocationCallOrder[0]!,
-    );
+    expect(commands.snooze).not.toHaveBeenCalled();
+    expect(commands.unsnooze).not.toHaveBeenCalled();
   });
 
   it("restores the pin without an already expired snooze", async () => {
@@ -214,7 +219,7 @@ describe("settle and snooze Undo", () => {
     expect(commands.unsettle).toHaveBeenCalledOnce();
   });
 
-  it("re-pins and re-snoozes a thread that settling had cleared", async () => {
+  it("restores snooze without changing a thread's saved pin", async () => {
     const snoozedUntil = "2030-01-01T09:00:00.000Z";
     threadShell.pinnedAt = "2026-01-01T00:00:00.000Z";
     threadShell.snoozedUntil = snoozedUntil;
@@ -222,35 +227,36 @@ describe("settle and snooze Undo", () => {
     await actions.settleThread(target);
     await currentUndo()();
     expect(commands.unsettle).toHaveBeenCalledOnce();
-    expect(commands.pin).toHaveBeenCalledExactlyOnceWith({
-      environmentId: target.environmentId,
-      input: { threadId: target.threadId, orderKey: "a0" },
-    });
+    expect(commands.pin).not.toHaveBeenCalled();
     expect(commands.snooze).toHaveBeenCalledExactlyOnceWith({
       environmentId: target.environmentId,
       input: { threadId: target.threadId, snoozedUntil },
     });
   });
 
-  it("stops settle restoration if restoring the pin fails", async () => {
+  it("stops settle restoration if un-settling fails", async () => {
     threadShell.pinnedAt = "2026-01-01T00:00:00.000Z";
     threadShell.snoozedUntil = "2030-01-01T09:00:00.000Z";
-    commands.pin.mockResolvedValue({ _tag: "Failure", cause: Cause.fail(new Error("Pin failed")) });
+    commands.unsettle.mockResolvedValue({
+      _tag: "Failure",
+      cause: Cause.fail(new Error("Un-settle failed")),
+    });
     vi.spyOn(toastManager, "add").mockReturnValue("toast");
     await useThreadActions().settleThread(target);
     await currentUndo()();
     expect(commands.unsettle).toHaveBeenCalledOnce();
-    expect(commands.pin).toHaveBeenCalledOnce();
+    expect(commands.pin).not.toHaveBeenCalled();
     expect(commands.snooze).not.toHaveBeenCalled();
   });
 
-  it("expires an older unpin Undo when the thread is settled", async () => {
+  it("keeps placement Undo independent of settling the thread", async () => {
     const actions = useThreadActions();
     await actions.unpinThread(target);
     const staleUnpinUndo = currentUndo();
     await actions.settleThread(target);
     await staleUnpinUndo();
-    expect(commands.pin).not.toHaveBeenCalled();
+    expect(commands.pin).toHaveBeenCalledOnce();
+    expect(commands.unsettle).not.toHaveBeenCalled();
   });
 
   // regression: #12972 the sidebar undo notice must reverse a snooze

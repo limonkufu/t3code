@@ -1256,6 +1256,9 @@ export function useComposerSend(input: ComposerSendInput) {
                       interactionMode: sendInteractionMode,
                       branch: activeThreadBranch,
                       worktreePath: activeThread.worktreePath,
+                      ...(activeThread.spaceId === undefined
+                        ? {}
+                        : { spaceId: activeThread.spaceId }),
                       createdAt: activeThread.createdAt,
                     },
                   }

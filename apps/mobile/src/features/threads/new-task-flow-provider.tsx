@@ -1,3 +1,4 @@
+import { readNamedWorkspaceScope } from "../../state/namedWorkspaces";
 import { ActiveNewTaskContext } from "../../state/active-new-task";
 import * as Dialog from "../../components/ui/Dialog";
 import React, { useEffect, useRef, useState } from "react";
@@ -819,6 +820,12 @@ export function NewTaskFlowProvider(
           currentCheckoutBranch: options?.currentCheckoutBranch ?? null,
         }),
         worktreePath: mode === "worktree" ? null : (workspaceSelection?.worktreePath ?? null),
+        spaceId:
+          draft.spaceId !== undefined
+            ? draft.spaceId
+            : readNamedWorkspaceScope()?.environmentId === selectedProject.environmentId
+              ? readNamedWorkspaceScope()!.workspaceId
+              : null,
         ...((workspaceSelection?.startFromOrigin ?? startFromOrigin)
           ? { startFromOrigin: true }
           : {}),

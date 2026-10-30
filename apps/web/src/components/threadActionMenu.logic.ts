@@ -2,6 +2,7 @@ import type { ContextMenuItem } from "@t3tools/contracts";
 import type { SnoozePreset } from "@t3tools/client-runtime/state/thread-settled";
 
 export type ThreadActionMenuId =
+  | "move-to-space"
   | "new-thread-on-branch"
   | "filter-by-project"
   | "project-settings"
@@ -81,6 +82,7 @@ export interface ThreadActionMenuState {
   /** Archive rejects attached providers, so disable it while running. */
   readonly isRunning: boolean;
   readonly supports: {
+    readonly spaces?: boolean;
     readonly settlement: boolean;
     readonly autoSettleOptOut: boolean;
     readonly snooze: boolean;
@@ -119,6 +121,9 @@ export function buildThreadActionMenuItems(
             icon: "message-square-plus",
           },
         ]
+      : []),
+    ...(state.supports.spaces
+      ? [{ id: "move-to-space" as const, label: "Move to Space…", icon: "folder-tree" }]
       : []),
     ...(state.supports.pinning
       ? [
