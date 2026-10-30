@@ -18,6 +18,7 @@ import {
   CommandId,
   ComposerContextId,
   EnvironmentId,
+  NamedWorkspaceId,
   MessageId,
   ProjectId,
   ProviderInstanceId,
@@ -1907,6 +1908,7 @@ describe("mobile composer drafts", () => {
       [key]: {
         ...getComposerDraftSnapshot(key),
         runtimeMode: "approval-required",
+        spaceId: NamedWorkspaceId.make("space:other-environment"),
         workspaceSelection: { mode: "worktree", branch: "feature/a", worktreePath: null },
       },
     });
@@ -1919,6 +1921,7 @@ describe("mobile composer drafts", () => {
     expect(moved.runtimeMode).toBe("approval-required");
 
     expect(moved.workspaceSelection).toBeUndefined();
+    expect(moved.spaceId).toBeNull();
     expect(moved.project).toEqual({ ...to, createdAt });
     expect(findNewTaskDraftKeys(appAtomRegistry.get(composerDraftsAtom), from)).toEqual([]);
     expect(findNewTaskDraftKeys(appAtomRegistry.get(composerDraftsAtom), to)).toEqual([key]);

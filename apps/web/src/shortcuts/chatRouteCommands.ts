@@ -1,3 +1,4 @@
+import { readWorkspaceNewThreadCheckout } from "../state/namedWorkspaces";
 import { AuthPreviewOperateScope, type EnvironmentId } from "@t3tools/contracts";
 import type { AnyRouter } from "@tanstack/react-router";
 
@@ -128,6 +129,7 @@ export function installChatRouteCommands(router: AnyRouter): () => void {
         const { boringSidebarEnabled, legacySidebarEnabled } = getClientSettings();
         const groups = readProjectGroups();
         if (
+          !readWorkspaceNewThreadCheckout() &&
           !boringSidebarEnabled &&
           !legacySidebarEnabled &&
           !shouldCreateNewThreadInCurrentProject(

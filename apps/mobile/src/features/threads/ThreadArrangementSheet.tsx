@@ -1,3 +1,4 @@
+import { useWorkspaceScopedThreads } from "../../state/namedWorkspaces";
 import { SheetHeader } from "../../components/ui/SheetHeader";
 import { appAtomRegistry } from "../../state/atom-registry";
 import { useAtomValue } from "@effect/atom-react";
@@ -169,7 +170,9 @@ function ThreadArrangementSheet(props: { onClose: () => void }) {
     baseFontSize: appearance.baseFontSize,
     fontScale,
   });
-  const threads = useAtomValue(environmentThreadShells.navigationThreadShellsAtom);
+  const threads = useWorkspaceScopedThreads(
+    useAtomValue(environmentThreadShells.navigationThreadShellsAtom),
+  );
   const configs = useAtomValue(environmentServerConfigsAtom);
   const listEnvironments = useAtomValue(threadListEnvironmentsAtom);
   const queuedThreadKeys = useAtomValue(queuedThreadKeysAtom);

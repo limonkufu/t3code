@@ -1,3 +1,4 @@
+import * as NamedWorkspaceStore from "./workspace/NamedWorkspaceStore.ts";
 import * as NodeServices from "@effect/platform-node/NodeServices";
 import * as Effect from "effect/Effect";
 import * as Context from "effect/Context";
@@ -352,6 +353,9 @@ const cleanupFixture = (
     let events: Stream.Stream<OrchestrationV2DomainEvent> = Stream.empty;
     const activated = yield* Deferred.make<void>();
     const context = yield* Layer.build(StorageCleanup.layer).pipe(
+      Effect.provideService(NamedWorkspaceStore.NamedWorkspaceStore, {
+        owner: () => Effect.void,
+      } as unknown as NamedWorkspaceStore.NamedWorkspaceStore["Service"]),
       Effect.provideService(GitVcsDriver.GitVcsDriver, {
         ...git,
         execute: (input) =>

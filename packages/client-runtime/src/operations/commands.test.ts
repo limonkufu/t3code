@@ -1,4 +1,5 @@
 import {
+  NamedWorkspaceId,
   CheckpointId,
   CheckpointRef,
   CheckpointScopeId,
@@ -242,6 +243,7 @@ describe("V2 environment commands", () => {
             interactionMode: "default",
             branch: "feature",
             worktreePath: "/workspace/project-worktrees/feature",
+            spaceId: NamedWorkspaceId.make("space:selected"),
             createdAt: "2026-06-20T00:00:00.000Z",
           },
         },
@@ -250,6 +252,7 @@ describe("V2 environment commands", () => {
       expect(launches[0]).toMatchObject({
         threadId: v2ThreadId,
         title: "Continue here",
+        spaceId: "space:selected",
         generateTitle: true,
         workspaceStrategy: {
           type: "existing_worktree",

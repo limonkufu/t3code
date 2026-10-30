@@ -1,3 +1,4 @@
+import { useNamedWorkspaceScope, useNamedWorkspaceView } from "../../state/namedWorkspaces";
 import type { EnvironmentId, SidebarProjectGroupingMode } from "@t3tools/contracts";
 import { DEFAULT_SIDEBAR_PROJECT_SORT_ORDER } from "@t3tools/contracts";
 import { RegistryContext, useAtomSet, useAtomValue } from "@effect/atom-react";
@@ -47,11 +48,39 @@ export function HomeListOptionsProvider({
 }>) {
   const registry = useContext(RegistryContext);
   const [optionsAtom] = useState(() => Atom.make(defaultHomeListOptions(savedFilters)));
-  const options = useAtomValue(optionsAtom);
+  const defaultOptions = useAtomValue(optionsAtom);
+  const [scope] = useNamedWorkspaceScope();
+  const [view, updateView] = useNamedWorkspaceView();
+  const options = scope
+    ? {
+        ...defaultOptions,
+        projectSortOrder: view.projectSortOrder ?? defaultOptions.projectSortOrder,
+        selectedEnvironmentId: view.filters?.environmentId ?? null,
+        selectedProjectKey: view.filters?.projectKey ?? null,
+      }
+    : defaultOptions;
   const savePreferences = useAtomSet(updateMobilePreferencesAtom);
   // Only the scope persists; the sort order is per session. Updates read the
   // registry, so several in one event each build on the last and save it.
   const updateOptions = (patch: Partial<HomeListOptions>) => {
+    if (scope) {
+      updateView((current) => ({
+        ...(patch.projectSortOrder === undefined
+          ? {}
+          : { projectSortOrder: patch.projectSortOrder }),
+        filters: {
+          environmentId:
+            patch.selectedEnvironmentId === undefined
+              ? (current.filters?.environmentId ?? null)
+              : patch.selectedEnvironmentId,
+          projectKey:
+            patch.selectedProjectKey === undefined
+              ? (current.filters?.projectKey ?? null)
+              : patch.selectedProjectKey,
+        },
+      }));
+      return;
+    }
     const current = registry.get(optionsAtom);
     const next = { ...current, ...patch };
     registry.set(optionsAtom, next);

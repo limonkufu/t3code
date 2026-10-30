@@ -18,6 +18,7 @@ import {
 } from "@t3tools/client-runtime/environment";
 import { DEFAULT_UNIFIED_SETTINGS } from "@t3tools/contracts/settings";
 import {
+  NamedWorkspaceId,
   defaultInstanceIdForDriver,
   DEFAULT_MODEL,
   DEFAULT_MODEL_BY_PROVIDER,
@@ -1242,6 +1243,9 @@ describe("composerDraftStore project draft thread mapping", () => {
     const store = useComposerDraftStore.getState();
     store.setProjectDraftThreadId(projectRef, draftId, { threadId });
     store.setPrompt(draftId, "keep this prompt");
+    store.setDraftThreadContext(draftId, { spaceId: NamedWorkspaceId.make("space:chosen") });
+    expect(store.getDraftThread(draftId)?.spaceId).toBe("space:chosen");
+
     store.setDraftThreadContext(draftId, {
       projectRef: remoteProjectRef,
       environmentSelection: "auto",
@@ -1249,6 +1253,7 @@ describe("composerDraftStore project draft thread mapping", () => {
     });
     expect(store.getDraftThread(draftId)).toMatchObject({
       environmentId: OTHER_TEST_ENVIRONMENT_ID,
+      spaceId: null,
       environmentSelection: "auto",
       loadBalancedEnvironmentId: OTHER_TEST_ENVIRONMENT_ID,
     });

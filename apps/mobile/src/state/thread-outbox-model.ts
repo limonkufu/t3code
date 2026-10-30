@@ -1,3 +1,4 @@
+import { NamedWorkspaceId } from "@t3tools/contracts";
 import { isTransportConnectionErrorMessage } from "@t3tools/client-runtime/errors";
 import {
   clampFileAttachmentUploadBytes,
@@ -41,6 +42,7 @@ const QueuedThreadCreationSchema = Schema.Struct({
   workspaceMode: Schema.Literals(["local", "worktree"]),
   branch: Schema.NullOr(Schema.String),
   worktreePath: Schema.NullOr(Schema.String),
+  spaceId: Schema.optional(Schema.NullOr(NamedWorkspaceId)),
   startFromOrigin: Schema.optional(Schema.Boolean),
   pullRequestReference: Schema.optional(Schema.String),
 });
@@ -72,6 +74,7 @@ export interface QueuedThreadCreation {
   readonly workspaceMode: "local" | "worktree";
   readonly branch: string | null;
   readonly worktreePath: string | null;
+  readonly spaceId?: NamedWorkspaceId | null;
   readonly startFromOrigin?: boolean;
   readonly pullRequestReference?: string;
 }

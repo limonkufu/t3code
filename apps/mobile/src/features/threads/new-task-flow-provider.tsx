@@ -1,3 +1,4 @@
+import { readNamedWorkspaceScope } from "../../state/namedWorkspaces";
 import { ActiveNewTaskContext } from "../../state/active-new-task";
 import { resolveNewThreadModelSelection } from "@t3tools/shared/usageLimits";
 import { useNowMinuteMs } from "../../lib/clock";
@@ -783,6 +784,12 @@ export function NewTaskFlowProvider(
           currentCheckoutBranch: options?.currentCheckoutBranch ?? null,
         }),
         worktreePath: mode === "worktree" ? null : (workspaceSelection?.worktreePath ?? null),
+        spaceId:
+          draft.spaceId !== undefined
+            ? draft.spaceId
+            : readNamedWorkspaceScope()?.environmentId === selectedProject.environmentId
+              ? readNamedWorkspaceScope()!.workspaceId
+              : null,
         ...((workspaceSelection?.startFromOrigin ?? startFromOrigin)
           ? { startFromOrigin: true }
           : {}),

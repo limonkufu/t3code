@@ -1,3 +1,4 @@
+import { namedWorkspaces, readWorkspaceThreads } from "./namedWorkspaces";
 import { useAtomValue } from "@effect/atom-react";
 import { deadlineStore, minuteTick } from "@t3tools/client-runtime/clock";
 import { Atom } from "effect/reactivity";
@@ -64,7 +65,9 @@ export function beginPendingThreadOrder(pending: PendingThreadOrder) {
     const current = appAtomRegistry.get(pendingThreadOrderAtom);
     if (current === null) return;
     const configs = appAtomRegistry.get(environmentServerConfigsAtom);
-    const threads = appAtomRegistry.get(environmentThreadShells.navigationThreadShellsAtom);
+    const threads = readWorkspaceThreads(
+      appAtomRegistry.get(environmentThreadShells.navigationThreadShellsAtom),
+    );
     const nowMs = Date.now();
     const ordered = getThreadListV2OrderedSection({
       threads,
@@ -90,6 +93,7 @@ export function beginPendingThreadOrder(pending: PendingThreadOrder) {
     appAtomRegistry.subscribe(environmentThreadShells.navigationThreadShellsAtom, refresh),
     appAtomRegistry.subscribe(environmentServerConfigsAtom, refresh),
     appAtomRegistry.subscribe(queuedThreadKeysAtom, refresh),
+    appAtomRegistry.subscribe(namedWorkspaces.catalogAtom, refresh),
     minuteTick.subscribe(refresh),
   );
   armWake(

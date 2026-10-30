@@ -99,6 +99,14 @@ vi.mock("../../state/atom-registry", () => ({
                 ),
   },
 }));
+vi.mock("../../state/namedWorkspaces", async () => {
+  const { threadEnvironment } = await import("../../state/threads");
+  return {
+    useNamedWorkspaceScope: () => [null, () => {}],
+    readWorkspaceThreads: (threads: readonly EnvironmentThreadShell[]) => threads,
+    useWorkspacePlacementCommands: () => threadEnvironment,
+  };
+});
 vi.mock("../../state/use-atom-command", () => ({
   useAtomCommand: (command: unknown) => command,
 }));
@@ -406,7 +414,7 @@ describe("thread action undo", () => {
     expect(state.archivedRefreshes).toEqual([primaryEnvironmentId]);
   });
 
-  it("restores pin placement and snooze after settling, only once", async () => {
+  it("restores snooze after settling without rewriting retained pin placement, only once", async () => {
     const thread = makeThread({
       pinnedAt: "2026-09-02T00:00:00.000Z",
       pinOrderKey: "m",
@@ -417,14 +425,8 @@ describe("thread action undo", () => {
     expect(readThreadUndoNotice()?.action).toBe("Settled");
     await undo();
     await undo();
-    expect(state.requests.map(({ action }) => action)).toEqual([
-      "settle",
-      "unsettle",
-      "pin",
-      "snooze",
-    ]);
-    expect(state.requests[2]?.input).toEqual({ threadId: thread.id, orderKey: "m" });
-    expect(state.requests[3]?.input).toEqual({
+    expect(state.requests.map(({ action }) => action)).toEqual(["settle", "unsettle", "snooze"]);
+    expect(state.requests[2]?.input).toEqual({
       threadId: thread.id,
       snoozedUntil: thread.snoozedUntil,
     });
@@ -445,7 +447,7 @@ describe("thread action undo", () => {
   });
 
   it.each([null, "2099-01-01T09:00:00.000Z", "2000-01-01T09:00:00.000Z"])(
-    "restores an unpinned thread's previous position and unexpired snooze (%s)",
+    "restores an unpinned thread's previous position without changing snooze (%s)",
     async (snoozedUntil) => {
       const thread = makeThread({
         pinnedAt: "2026-09-02T00:00:00.000Z",
@@ -455,22 +457,11 @@ describe("thread action undo", () => {
       await useThreadListActions().unpinThread(thread);
       expect(readThreadUndoNotice()?.action).toBe("Unpinned");
       await readThreadUndoNotice()!.undo();
-      // 2099 is the unexpired case; 2000 has long passed.
-      const restoresSnooze = snoozedUntil === "2099-01-01T09:00:00.000Z";
-      expect(state.requests.map(({ action }) => action)).toEqual(
-        restoresSnooze ? ["unpin", "pin", "snooze"] : ["unpin", "pin"],
-      );
+      expect(state.requests.map(({ action }) => action)).toEqual(["unpin", "pin"]);
       expect(state.requests[1]).toMatchObject({
         action: "pin",
         input: { threadId: thread.id, orderKey: "m" },
       });
-      if (restoresSnooze) {
-        expect(state.requests[2]).toMatchObject({
-          action: "snooze",
-          environmentId: thread.environmentId,
-          input: { threadId: thread.id, snoozedUntil },
-        });
-      }
     },
   );
 

@@ -1,3 +1,4 @@
+import { readWorkspaceNewThreadCheckout, readWorkspaceScope } from "../state/namedWorkspaces";
 import {
   scopedProjectKey,
   scopeProjectRef,
@@ -50,12 +51,14 @@ import { resolveNewThreadModelSelection } from "@t3tools/shared/usageLimits";
 interface NewThreadWorkspaceOptions {
   branch?: string | null;
   worktreePath?: string | null;
+  spaceId?: import("@t3tools/contracts").NamedWorkspaceId | null;
   envMode?: DraftThreadEnvMode;
   startFromOrigin?: boolean;
 }
 
 function pickExplicitWorkspaceOptions(options: NewThreadWorkspaceOptions | undefined) {
   return {
+    ...(options?.spaceId === undefined ? {} : { spaceId: options.spaceId }),
     ...(options?.branch !== undefined ? { branch: options.branch } : {}),
     ...(options?.worktreePath !== undefined ? { worktreePath: options.worktreePath } : {}),
     ...(options?.envMode !== undefined ? { envMode: options.envMode } : {}),
@@ -80,6 +83,7 @@ export function createNewThreadHandler(router: AnyRouter) {
     options?: {
       branch?: string | null;
       worktreePath?: string | null;
+      spaceId?: import("@t3tools/contracts").NamedWorkspaceId | null;
       envMode?: DraftThreadEnvMode;
       startFromOrigin?: boolean;
       replace?: boolean;
@@ -87,6 +91,27 @@ export function createNewThreadHandler(router: AnyRouter) {
       prompt?: string;
     },
   ): Promise<{ draftId: DraftId; threadId: ThreadId } | null> => {
+    const selectedSpace = readWorkspaceScope();
+    options = {
+      ...options,
+      ...(options?.spaceId !== undefined
+        ? { spaceId: options.spaceId }
+        : selectedSpace?.environmentId === projectRef.environmentId
+          ? { spaceId: selectedSpace.workspaceId }
+          : {}),
+    };
+    if (options?.worktreePath === undefined && options?.envMode === undefined) {
+      const checkout = readWorkspaceNewThreadCheckout(projectRef);
+      if (checkout) {
+        projectRef = { environmentId: checkout.environmentId, projectId: checkout.projectId };
+        options = {
+          ...options,
+          branch: checkout.branch,
+          worktreePath: checkout.path,
+          envMode: checkout.path ? "worktree" : "local",
+        };
+      }
+    }
     const projects = readProjects();
     const projectGroupingSettings = selectProjectGroupingSettings(getClientSettings());
     // Read at call time; status pushes replace the config map and would recreate every sidebar handler.
@@ -231,6 +256,7 @@ export function createNewThreadHandler(router: AnyRouter) {
     }
     const emptyStoredDraftThread =
       reusableStoredDraftThread &&
+      reusableStoredDraftThread.spaceId === options.spaceId &&
       !composerDraftHasUserContent(getComposerDraft(reusableStoredDraftThread.draftId))
         ? reusableStoredDraftThread
         : null;
@@ -337,6 +363,7 @@ export function createNewThreadHandler(router: AnyRouter) {
       latestActiveDraftThread &&
       currentRouteTarget?.kind === "draft" &&
       latestActiveDraftThread.logicalProjectKey === logicalProjectKey &&
+      latestActiveDraftThread.spaceId === options.spaceId &&
       latestActiveDraftThread.promotedTo == null &&
       !composerDraftHasUserContent(getComposerDraft(currentRouteTarget.draftId))
     ) {
@@ -397,6 +424,7 @@ export function createNewThreadHandler(router: AnyRouter) {
         createdAt,
         branch: options?.branch ?? null,
         worktreePath: options?.worktreePath ?? null,
+        ...(options?.spaceId === undefined ? {} : { spaceId: options.spaceId }),
         envMode: initialEnvMode,
         startFromOrigin:
           options?.startFromOrigin ??

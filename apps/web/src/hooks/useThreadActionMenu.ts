@@ -1,3 +1,7 @@
+import { appAtomRegistry } from "../rpc/atomRegistry";
+import { spaceAssignmentTargetAtom } from "../state/namedWorkspaces";
+import { environmentPresentations } from "../state/presentation";
+import { readWorkspaceThreads } from "../state/namedWorkspaces";
 import { scopeProjectRef } from "@t3tools/client-runtime/environment";
 import { requestCustomSnooze } from "../components/CustomSnoozeDialog";
 import { openGuestShareDialog } from "../components/chat/guestShareDialogState";
@@ -119,11 +123,16 @@ export function useThreadActionMenu(input: {
     void (async () => {
       const api = readLocalApi();
       if (!api) return;
-      const thread = readThreadShell(threadRef);
-      if (!thread) return;
+      const shell = readThreadShell(threadRef);
+      if (!shell) return;
+      const thread = readWorkspaceThreads([shell])[0] ?? shell;
       const now = new Date();
       const configLoaded = readEnvironmentServerConfigLoaded(threadRef.environmentId);
       const supports = {
+        spaces:
+          appAtomRegistry
+            .get(environmentPresentations.serverConfigsAtom)
+            .get(threadRef.environmentId)?.namedWorkspaces === true,
         settlement: configLoaded,
         autoSettleOptOut: readEnvironmentSupportsAutoSettleOptOut(threadRef.environmentId),
         snooze: configLoaded,
@@ -191,6 +200,9 @@ export function useThreadActionMenu(input: {
       switch (action) {
         case "find":
           onFind?.(threadRef);
+          return;
+        case "move-to-space":
+          appAtomRegistry.set(spaceAssignmentTargetAtom, threadRef);
           return;
         case "project-settings": {
           const project = projects.find(

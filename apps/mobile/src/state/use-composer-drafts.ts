@@ -1,3 +1,4 @@
+import { NamedWorkspaceId } from "@t3tools/contracts";
 import { useAtomValue } from "@effect/atom-react";
 import {
   EnvironmentId as EnvironmentIdSchema,
@@ -368,6 +369,7 @@ export interface ComposerDraft {
   readonly interactionMode?: ProviderInteractionMode;
   readonly workspaceSelection?: ComposerDraftWorkspaceSelection;
   readonly project?: ComposerDraftProject;
+  readonly spaceId?: NamedWorkspaceId | null;
 }
 
 export interface ComposerDraftProject {
@@ -399,7 +401,12 @@ export interface ComposerDraftWorkspaceSelection {
 
 export type ComposerDraftSettingsUpdate = Pick<
   ComposerDraft,
-  "modelSelection" | "runtimeMode" | "interactionMode" | "workspaceSelection" | "project"
+  | "modelSelection"
+  | "runtimeMode"
+  | "interactionMode"
+  | "workspaceSelection"
+  | "project"
+  | "spaceId"
 >;
 
 const ComposerDraftWorkspaceSelectionSchema = Schema.Struct({
@@ -433,6 +440,7 @@ const ComposerDraftSchema = Schema.Struct({
   interactionMode: Schema.optional(ProviderInteractionModeSchema),
   workspaceSelection: Schema.optional(ComposerDraftWorkspaceSelectionSchema),
   project: Schema.optional(ComposerDraftProjectSchema),
+  spaceId: Schema.optional(Schema.NullOr(NamedWorkspaceId)),
 });
 
 const PersistedComposerDraftsSchema = Schema.Struct({
@@ -1735,6 +1743,7 @@ export function sameComposerDraftState(a: ComposerDraft, b: ComposerDraft): bool
     a.modelSelection === b.modelSelection &&
     a.runtimeMode === b.runtimeMode &&
     a.interactionMode === b.interactionMode &&
+    a.spaceId === b.spaceId &&
     a.workspaceSelection === b.workspaceSelection
   );
 }
@@ -1901,6 +1910,9 @@ export function retargetNewTaskDraft(
       ...current,
       [draftKey]: {
         ...retained,
+        ...(stamp !== undefined && stamp.environmentId !== project.environmentId
+          ? { spaceId: null }
+          : {}),
         attachments,
         project: {
           environmentId: project.environmentId,

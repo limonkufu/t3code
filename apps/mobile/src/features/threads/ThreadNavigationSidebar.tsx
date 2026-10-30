@@ -1,3 +1,13 @@
+import {
+  useNamedWorkspaceView,
+  useNamedWorkspaceScope,
+  saveNamedWorkspaceScroll,
+} from "../../state/namedWorkspaces";
+import { NamedWorkspaceSwitcher } from "./NamedWorkspaceSwitcher";
+import {
+  useWorkspaceScopedThreads,
+  useWorkspaceScopedPendingTasks,
+} from "../../state/namedWorkspaces";
 import { useActiveNewTask } from "../../state/active-new-task";
 import { ThreadUndoNotice } from "../home/ThreadUndoNotice";
 import { useAndroidControlSizing } from "../../components/ui/useAndroidControlSizing";
@@ -18,7 +28,7 @@ import { AnimatedLegendList } from "@legendapp/list/reanimated";
 import { THREAD_SIDEBAR_ROW_LAYOUT } from "./threadListAnimations";
 import type { MenuAction } from "@react-native-menu/menu";
 import { useAtomValue } from "@effect/atom-react";
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { LayoutChangeEvent, TextInputInstance } from "react-native";
 import { Platform, StyleSheet, TextInput, View } from "react-native";
 import { GestureDetector, useNativeGesture } from "react-native-gesture-handler";
@@ -147,6 +157,15 @@ function NativeSidebarContainer(props: ThreadNavigationSidebarProps) {
 function ThreadNavigationSidebarPane(
   props: ThreadNavigationSidebarProps & { readonly nativeChrome: boolean },
 ) {
+  const [namedView, updateNamedView] = useNamedWorkspaceView();
+  const [namedScope] = useNamedWorkspaceScope();
+  const namedWorkspaceScopeKey =
+    namedScope === null ? "all" : `${namedScope.environmentId}:${namedScope.workspaceId}`;
+  const searchQuery = namedView.query ?? "";
+  const onSearchQueryChange = (query: string) => {
+    updateNamedView({ query });
+    props.onSearchQueryChange(query);
+  };
   const floatingTabsEnabled = useAndroidFloatingTabs();
   const { themeVariables: materialTheme } = useAppearancePreferences();
   const drawerColor = materialTheme["--color-drawer"];
@@ -156,11 +175,15 @@ function ThreadNavigationSidebarPane(
   const enabledTabs = useEnabledNavigationTabs();
   const floatingTabs = floatingTabsMetrics(enabledTabs.length + 1, scale, fabSize, props.width);
   const projects = useProjects();
-  const threads = useNavigationThreadShells();
+  const threads = useWorkspaceScopedThreads(useNavigationThreadShells());
   const { environments: workspaceEnvironments, state: catalogState } = useWorkspaceState();
   const { savedConnectionsById } = useSavedRemoteConnections();
   const searchInputRef = useRef<TextInputInstance>(null);
   const searchBarRef = useRef<SearchBarCommands>(null);
+  // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- synchronizes the native search control with the selected workspace's saved query
+  useEffect(() => {
+    searchBarRef.current?.setText(searchQuery);
+  }, [searchQuery]);
   const openSwipeableRef = useRef<SwipeableMethods | null>(null);
   const sidebarScrollGesture = useNativeGesture();
   const {
@@ -177,7 +200,7 @@ function ThreadNavigationSidebarPane(
     renameThread,
     regenerateThreadTitle,
   } = useThreadListActions();
-  const pendingTasks = usePendingNewTasks();
+  const pendingTasks = useWorkspaceScopedPendingTasks(usePendingNewTasks());
   const activeNewTask = useActiveNewTask();
   const queuedThreadKeys = useQueuedThreadKeys();
   const selectDetail = useSelectWorkspaceDetail();
@@ -246,7 +269,7 @@ function ThreadNavigationSidebarPane(
     pickableProjectGroups(projectScopes).find((scope) => scope.key === resolvedProjectKey) ?? null;
   const threadSearch = useThreadSearch(
     searchEnvironmentIds,
-    props.searchQuery,
+    searchQuery,
     selectedProjectScope === null
       ? {}
       : { projectIds: selectedProjectScope.projectRefs.map((ref) => ref.projectId) },
@@ -266,7 +289,7 @@ function ThreadNavigationSidebarPane(
   const [settledVisibleCount, setSettledVisibleCount] = useState(
     THREAD_LIST_V2_SETTLED_INITIAL_COUNT,
   );
-  const settledResetKey = `${options.selectedEnvironmentId ?? "all"}:${selectedProjectKey ?? "all"}:${props.searchQuery.trim()}`;
+  const settledResetKey = `${options.selectedEnvironmentId ?? "all"}:${selectedProjectKey ?? "all"}:${searchQuery.trim()}`;
   const [lastSettledResetKey, setLastSettledResetKey] = useState(settledResetKey);
   if (lastSettledResetKey !== settledResetKey) {
     setLastSettledResetKey(settledResetKey);
@@ -310,7 +333,7 @@ function ThreadNavigationSidebarPane(
     pendingTasks,
     environmentId: options.selectedEnvironmentId,
     projectRefs: selectedProjectScope === null ? null : selectedProjectScope.projectRefs,
-    searchQuery: props.searchQuery,
+    searchQuery: searchQuery,
     searchMatches: threadSearchMatchByKey,
     settlementEnvironmentIds,
     snoozeEnvironmentIds,
@@ -466,7 +489,10 @@ function ThreadNavigationSidebarPane(
   };
   const onFabScroll = useFabScroll();
   const { swipeEnabled, scrollGateHandlers } = useSwipeableScrollGate({
-    onScroll: onFabScroll,
+    onScroll: (event) => {
+      onFabScroll?.(event);
+      saveNamedWorkspaceScroll(event.nativeEvent.contentOffset.y);
+    },
     onScrollBeginDrag: handleScrollBeginDrag,
   });
   // Recycle equality needs project/search data for titles and favicons; keep the minute clock on items to limit updates.
@@ -695,7 +721,7 @@ function ThreadNavigationSidebarPane(
         ? "Loading threads…"
         : Platform.OS === "android" && !catalogState.hasConnections
           ? "No environments connected"
-          : props.searchQuery.trim().length > 0
+          : searchQuery.trim().length > 0
             ? threadSearch.isPending
               ? "Searching thread messages…"
               : "No matching threads"
@@ -726,10 +752,10 @@ function ThreadNavigationSidebarPane(
               placeholder: "Search",
               placement: "stacked",
               onCancelButtonPress: () => {
-                props.onSearchQueryChange("");
+                onSearchQueryChange("");
               },
               onChangeText: (event) => {
-                props.onSearchQueryChange(event.nativeEvent.text);
+                onSearchQueryChange(event.nativeEvent.text);
               },
             },
             unstable_headerRightItems: () => nativeHeaderItems,
@@ -741,6 +767,8 @@ function ThreadNavigationSidebarPane(
               <AnimatedLegendList
                 renderScrollComponent={Platform.OS === "ios" ? NativeScrollView : undefined}
                 itemLayoutAnimation={THREAD_SIDEBAR_ROW_LAYOUT}
+                key={namedWorkspaceScopeKey}
+                initialScrollOffset={namedView.scrollOffset ?? 0}
                 data={listItems}
                 drawDistance={500}
                 estimatedItemSize={64}
@@ -769,6 +797,7 @@ function ThreadNavigationSidebarPane(
                 showsVerticalScrollIndicator={false}
                 style={styles.threadList}
                 ListEmptyComponent={listEmpty}
+                ListHeaderComponent={<NamedWorkspaceSwitcher />}
               />
             </GestureDetector>
           </SwipeableScrollGateProvider>
@@ -811,6 +840,8 @@ function ThreadNavigationSidebarPane(
               {/* oxlint-disable-next-line t3code/require-registered-list-scroll -- Only the non-native workspace layout (Android and the fallback) renders this sidebar, which has no native header to register with. */}
               <AnimatedLegendList
                 itemLayoutAnimation={THREAD_SIDEBAR_ROW_LAYOUT}
+                key={namedWorkspaceScopeKey}
+                initialScrollOffset={namedView.scrollOffset ?? 0}
                 data={listItems}
                 drawDistance={500}
                 estimatedItemSize={64}
@@ -842,6 +873,7 @@ function ThreadNavigationSidebarPane(
                 showsVerticalScrollIndicator={false}
                 style={styles.threadList}
                 ListEmptyComponent={listEmpty}
+                ListHeaderComponent={<NamedWorkspaceSwitcher />}
               />
             </GestureDetector>
           </SwipeableScrollGateProvider>
@@ -852,8 +884,8 @@ function ThreadNavigationSidebarPane(
         <ThreadListToolbar
           sidebar
           onLayout={handleStickyHeaderLayout}
-          searchQuery={props.searchQuery}
-          onSearchQueryChange={props.onSearchQueryChange}
+          searchQuery={searchQuery}
+          onSearchQueryChange={onSearchQueryChange}
           filterActions={listMenuActions}
           filterCustomized={filterCustomized}
           onFilterAction={handleListMenuAction}
@@ -900,7 +932,7 @@ function ThreadNavigationSidebarPane(
               autoCapitalize="none"
               autoCorrect={false}
               clearButtonMode="while-editing"
-              onChangeText={props.onSearchQueryChange}
+              onChangeText={onSearchQueryChange}
               placeholder="Search"
               placeholderTextColorClassName="accent-placeholder"
               selectionColorClassName={undefined}
@@ -908,7 +940,7 @@ function ThreadNavigationSidebarPane(
               selectionHandleColorClassName={undefined}
               returnKeyType="search"
               className="h-[34px] flex-1 px-0 py-0 font-sans text-base text-drawer-foreground"
-              value={props.searchQuery}
+              value={searchQuery}
             />
           </View>
         </View>

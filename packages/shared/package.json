@@ -3,6 +3,10 @@
   "private": true,
   "type": "module",
   "exports": {
+    "./threadSpace": {
+      "types": "./src/threadSpace.ts",
+      "import": "./src/threadSpace.ts"
+    },
     "./changedFileKind": {
       "types": "./src/changedFileKind.ts",
       "import": "./src/changedFileKind.ts"

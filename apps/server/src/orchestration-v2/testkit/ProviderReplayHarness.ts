@@ -18,6 +18,7 @@ import type { SqlError } from "effect/sql/SqlError";
 import * as CheckpointStore from "../../checkpointing/CheckpointStore.ts";
 import * as ServerConfig from "../../config.ts";
 import * as SqlitePersistence from "../../persistence/Sqlite.ts";
+import * as NamedWorkspaceStore from "../../workspace/NamedWorkspaceStore.ts";
 import * as ServerSettings from "../../serverSettings.ts";
 import * as ManagedPolicy from "../../policy/ManagedPolicy.ts";
 import * as ThreadManagementService from "../ThreadManagementService.ts";
@@ -413,6 +414,7 @@ export function layerWithRegistry<Error>(
     ),
   );
   const layerProviderTurnStartServiceProvided = ProviderTurnStartService.layer.pipe(
+    Layer.provide(NamedWorkspaceStore.layer.pipe(Layer.orDie, Layer.provide(layerDatabase))),
     Layer.provide(
       Layer.mergeAll(
         layerContextHandoffServiceProvided,
@@ -437,6 +439,7 @@ export function layerWithRegistry<Error>(
     Layer.provide(Layer.merge(layerStores, layerProviderSessionManagerProvided)),
   );
   const layerCheckpointRollbackServiceProvided = CheckpointRollbackService.layer.pipe(
+    Layer.provide(NamedWorkspaceStore.layer.pipe(Layer.orDie, Layer.provide(layerDatabase))),
     Layer.provide(
       Layer.mergeAll(
         layerCheckpointServiceProvided,

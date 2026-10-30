@@ -27,6 +27,7 @@ import * as Schema from "effect/Schema";
 
 import * as ServerConfig from "../config.ts";
 import { withWorkspaceLease } from "../workspace/workspaceLease.ts";
+import * as NamedWorkspaceStore from "../workspace/NamedWorkspaceStore.ts";
 import * as GitWorkflowService from "../git/GitWorkflowService.ts";
 import * as ProjectService from "../project/ProjectService.ts";
 import * as ProviderAuthService from "../provider/ProviderAuthService.ts";
@@ -142,6 +143,7 @@ export const layer: Layer.Layer<
   | ProjectService.ProjectService
   | ProviderAuthService.ProviderAuthService
   | ProjectionStore.ProjectionStoreV2
+  | NamedWorkspaceStore.NamedWorkspaceStore
   | ProviderSessionManager.ProviderSessionManagerV2
   | RunExecutionService.RunExecutionServiceV2
   | RuntimePolicy.RuntimePolicyV2
@@ -158,6 +160,7 @@ export const layer: Layer.Layer<
     const projects = yield* ProjectService.ProjectService;
     const providerAuth = yield* ProviderAuthService.ProviderAuthService;
     const projectionStore = yield* ProjectionStore.ProjectionStoreV2;
+    const workspaces = yield* NamedWorkspaceStore.NamedWorkspaceStore;
     const providerSessions = yield* ProviderSessionManager.ProviderSessionManagerV2;
     const runExecution = yield* RunExecutionService.RunExecutionServiceV2;
     const runtimePolicy = yield* RuntimePolicy.RuntimePolicyV2;
@@ -1716,7 +1719,12 @@ export const layer: Layer.Layer<
           const { thread } = yield* projectionStore.getThreadRecords(input.threadId, []);
           const providerTurn = yield* thread.worktreePath === null
             ? start(input)
-            : withWorkspaceLease(path.resolve(thread.worktreePath), start(input));
+            : withWorkspaceLease(
+                path.resolve(thread.worktreePath),
+                workspaces
+                  .assertAvailable(path.resolve(thread.worktreePath))
+                  .pipe(Effect.andThen(start(input))),
+              );
           if (providerTurn !== undefined) yield* providerTurn;
         },
         (effect, input) =>

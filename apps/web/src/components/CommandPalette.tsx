@@ -1,3 +1,4 @@
+import { spaceAssignmentTargetAtom } from "../state/namedWorkspaces";
 import { threadPullRequestLinkMode } from "@t3tools/client-runtime/thread-pull-request-compatibility";
 import { visibleThreadPullRequests } from "@t3tools/shared/threadPullRequests";
 
@@ -64,6 +65,8 @@ import {
   FolderIcon,
   FolderPlusIcon,
   MessageSquareDashedIcon,
+  PanelLeftCloseIcon,
+  PanelLeftOpenIcon,
   LinkIcon,
   MessageSquareIcon,
   PaletteIcon,
@@ -116,6 +119,12 @@ import { readEnvironmentScope, useEnvironmentScope } from "~/state/session";
 import { sourceControlEnvironment } from "../state/sourceControl";
 import { useAtomCommand } from "../state/use-atom-command";
 import { useOrchestrationCommand } from "../state/use-orchestration-command";
+import {
+  namedWorkspaces,
+  workspaceManagerOpenAtom,
+  useWorkspaceRailExpanded,
+} from "../state/namedWorkspaces";
+import { appAtomRegistry } from "../rpc/atomRegistry";
 import { useAtomQueryRunner } from "../state/use-atom-query-runner";
 import { useScratchProject } from "../hooks/useScratchProject";
 import { useStartTriage } from "../hooks/useStartTriage";
@@ -394,6 +403,8 @@ function OpenCommandPaletteDialog(props: {
   ) => void;
   readonly initialContext: CommandPaletteReturnContext | undefined;
 }) {
+  const [workspaceRailExpanded, setWorkspaceRailExpanded] = useWorkspaceRailExpanded();
+  const hasNamedWorkspaces = useAtomValue(namedWorkspaces.catalogAtom).length > 0;
   const navigate = useNavigate();
   const pathname = useLocation({ select: (location) => location.pathname });
   const { openChildSearch, setOpen } = props;
@@ -1224,6 +1235,51 @@ function OpenCommandPaletteDialog(props: {
   };
 
   const actionItems: Array<CommandPaletteActionItem | CommandPaletteSubmenuItem> = [];
+  if (
+    activeThread &&
+    environments.some(
+      (environment) =>
+        environment.environmentId === activeThread.environmentId &&
+        environment.serverConfig?.namedWorkspaces,
+    )
+  )
+    actionItems.push({
+      kind: "action",
+      value: "action:move-to-space",
+      title: "Move thread to Space…",
+      icon: <FolderIcon className={ITEM_ICON_CLASS} />,
+      searchTerms: ["move", "space", "group"],
+      run: async () => {
+        appAtomRegistry.set(spaceAssignmentTargetAtom, {
+          environmentId: activeThread.environmentId,
+          threadId: activeThread.id,
+        });
+      },
+    });
+
+  if (environments.some((environment) => environment.serverConfig?.namedWorkspaces)) {
+    actionItems.push({
+      kind: "action",
+      value: "action:manage-workspaces",
+      title: "Manage Spaces",
+      searchTerms: ["space", "workspace", "rail", "branches", "worktrees"],
+      icon: <SettingsIcon className={ITEM_ICON_CLASS} />,
+      run: async () => appAtomRegistry.set(workspaceManagerOpenAtom, true),
+    });
+    if (hasNamedWorkspaces)
+      actionItems.push({
+        kind: "action",
+        value: "action:toggle-workspace-rail",
+        title: workspaceRailExpanded ? "Collapse Space rail" : "Show Space rail",
+        searchTerms: ["space", "workspace", "rail", "collapse", "expand", "focus"],
+        icon: workspaceRailExpanded ? (
+          <PanelLeftCloseIcon className={ITEM_ICON_CLASS} />
+        ) : (
+          <PanelLeftOpenIcon className={ITEM_ICON_CLASS} />
+        ),
+        run: async () => setWorkspaceRailExpanded(!workspaceRailExpanded),
+      });
+  }
 
   if (projects.length > 0) {
     const activeProjectTitle =

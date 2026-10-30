@@ -255,11 +255,25 @@ describe("interrupt turn", () => {
 
 describe("remote thread lifecycle commands", () => {
   const actions = [
-    ["settle", {}, { settledOverride: "settled", pinnedAt: null, snoozedUntil: null }],
+    [
+      "settle",
+      {},
+      { settledOverride: "settled", pinnedAt: NOW, pinOrderKey: "a", snoozedUntil: null },
+    ],
     ["unsettle", { reason: "user" }, { settledOverride: "active", settledAt: null }],
     ["snooze", { snoozedUntil: "2099-01-01T00:00:00.000Z" }, { snoozedUntil: FUTURE }],
     ["unsnooze", { reason: "user" }, { snoozedUntil: null, snoozedAt: null }],
-    ["pin", { orderKey: "a" }, { pinnedAt: expect.any(Object), pinOrderKey: "a" }],
+    [
+      "pin",
+      { orderKey: "a" },
+      {
+        pinnedAt: expect.any(Object),
+        pinOrderKey: "a",
+        settledOverride: "settled",
+        settledAt: NOW,
+        snoozedUntil: FUTURE,
+      },
+    ],
     ["unpin", {}, { pinnedAt: null, pinOrderKey: null }],
     ["setAutoSettle", { enabled: false }, { autoSettleDisabledAt: expect.any(Object) }],
     ["reorderPin", { orderKey: "b" }, { pinOrderKey: "b" }],

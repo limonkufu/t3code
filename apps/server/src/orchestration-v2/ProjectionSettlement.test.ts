@@ -250,7 +250,16 @@ it.effect(
       );
       assert.deepEqual(
         new Set(eligible.map((thread) => thread.id)),
-        new Set([idle, completed, queued, woke, background, persistent, rolledBack]),
+        new Set([
+          idle,
+          completed,
+          queued,
+          woke,
+          background,
+          persistent,
+          rolledBack,
+          ThreadId.make("thread:settlement:pinned"),
+        ]),
       );
       assert.deepEqual(
         new Set(eligible.map((thread) => thread.id)),

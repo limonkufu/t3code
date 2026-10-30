@@ -1,4 +1,8 @@
 import * as GuestShareService from "../guest/GuestShareService.ts";
+import * as NamedWorkspaceStore from "../workspace/NamedWorkspaceStore.ts";
+import * as NamedWorkspaceRuntime from "../workspace/NamedWorkspaceRuntime.ts";
+import * as NamedWorkspaceService from "../workspace/NamedWorkspaceService.ts";
+import * as NamedWorkspaceGuards from "../workspace/NamedWorkspaceGuards.ts";
 import * as UsageLimitRecoveryWorker from "./UsageLimitRecoveryWorker.ts";
 import * as Scheduler from "../scheduling/Scheduler.ts";
 import * as Layer from "effect/Layer";
@@ -172,6 +176,7 @@ const layerProviderTurnStartServiceProvided = ProviderTurnStartService.layer.pip
       layerProviderAuthServiceProvided,
       layerRunExecutionServiceProvided,
       layerRuntimePolicyProvided,
+      NamedWorkspaceStore.layer,
     ),
   ),
 );
@@ -183,6 +188,7 @@ const layerRuntimeRequestServiceProvided = RuntimeRequestService.layer.pipe(
   Layer.provide(Layer.merge(ProjectionStore.layer, layerProviderSessionManagerProvided)),
 );
 const layerCheckpointRollbackServiceProvided = CheckpointRollbackService.layer.pipe(
+  Layer.provide(NamedWorkspaceStore.layer),
   Layer.provide(
     Layer.mergeAll(
       ProjectStore.layer,
@@ -210,7 +216,7 @@ const layerRunFinalizationServiceProvided = RunFinalizationService.layer.pipe(
   Layer.provide(Layer.merge(layerCheckpointCaptureServiceProvided, ProjectionStore.layer)),
 );
 
-const layerOrchestratorProvided = Orchestrator.layer.pipe(
+const layerOrchestratorBase = Orchestrator.layer.pipe(
   Layer.provide(
     Layer.mergeAll(
       layerCheckpointServiceProvided,
@@ -232,6 +238,11 @@ const layerOrchestratorProvided = Orchestrator.layer.pipe(
       ThreadForkService.layer,
     ),
   ),
+);
+
+const layerOrchestratorProvided = NamedWorkspaceGuards.layerCommands.pipe(
+  Layer.provide(layerOrchestratorBase),
+  Layer.provide(NamedWorkspaceStore.layer),
 );
 
 const layerAgentSessionImporterProvided = AgentSessionImporter.layer.pipe(
@@ -370,6 +381,23 @@ export const layer = Layer.mergeAll(
 export const layerProduction = Layer.mergeAll(
   layer.pipe(Layer.provide(layerProjectService)),
   layerProjectService,
+  NamedWorkspaceStore.layer,
+  NamedWorkspaceService.layer.pipe(
+    Layer.provide(
+      NamedWorkspaceRuntime.layer.pipe(
+        Layer.provide(
+          Layer.mergeAll(
+            layerThreadManagementProvided,
+            layerProviderSessionManagerProvided,
+            GitVcsDriver.layer,
+            ProjectStore.layer,
+            layerOrchestratorBase,
+          ),
+        ),
+      ),
+    ),
+    Layer.provide(NamedWorkspaceStore.layer),
+  ),
   layerManagedProjectFoldersProvided,
   layerThreadLaunchProvided,
   layerScheduledTaskProvided,
