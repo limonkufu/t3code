@@ -7,18 +7,31 @@ import * as NodeURL from "node:url";
 import { ensureElectronRuntime } from "./ensure-electron-runtime.mjs";
 
 const isDevelopment = Boolean(process.env.VITE_DEV_SERVER_URL);
+const isReleaseCandidate = ["1", "true"].includes(process.env.T3CODE_DESKTOP_RC?.toLowerCase());
 const __dirname = NodePath.dirname(NodeURL.fileURLToPath(import.meta.url));
 export const desktopDir = NodePath.resolve(__dirname, "..");
 const repoRoot = NodePath.resolve(desktopDir, "..", "..");
 const devBundleIdSuffix = NodePath.basename(repoRoot)
   .toLowerCase()
   .replaceAll(/[^a-z0-9]+/g, "");
-const APP_DISPLAY_NAME = isDevelopment ? "T3 Code (Dev)" : "T3 Code (Beta)";
-const APP_BUNDLE_ID = isDevelopment
-  ? `com.t3tools.t3code.dev.${devBundleIdSuffix || "local"}`
-  : "com.t3tools.t3code";
+const APP_DISPLAY_NAME = isReleaseCandidate
+  ? "T3 Code (RC)"
+  : isDevelopment
+    ? "T3 Code (Dev)"
+    : "T3 Code (Beta)";
+const APP_BUNDLE_ID = isReleaseCandidate
+  ? `com.t3tools.t3code.rc.${devBundleIdSuffix || "local"}`
+  : isDevelopment
+    ? `com.t3tools.t3code.dev.${devBundleIdSuffix || "local"}`
+    : "com.t3tools.t3code";
 const APP_PROTOCOL_SCHEMES = isDevelopment ? ["t3code-dev"] : ["t3code"];
 const LAUNCHER_VERSION = 20;
+const desktopRuntimeDir = NodePath.join(
+  desktopDir,
+  ".electron-runtime",
+  ...(isReleaseCandidate ? ["rc"] : []),
+);
+export const developmentAppRoot = isReleaseCandidate ? desktopRuntimeDir : desktopDir;
 const developmentMacIconPngPath = NodePath.join(
   repoRoot,
   "assets",
@@ -111,6 +124,8 @@ export function makeDevelopmentEnvironmentScript(environment) {
     ["VITE_DEV_SERVER_URL", environment.VITE_DEV_SERVER_URL],
     ["T3CODE_PORT", environment.T3CODE_PORT],
     ["T3CODE_HOME", environment.T3CODE_HOME],
+    ["T3CODE_DESKTOP_RC", environment.T3CODE_DESKTOP_RC],
+    ["T3CODE_DISABLE_AUTO_UPDATE", environment.T3CODE_DISABLE_AUTO_UPDATE],
     ["T3CODE_COMMIT_HASH", environment.T3CODE_COMMIT_HASH],
     ["T3CODE_OTLP_TRACES_URL", environment.T3CODE_OTLP_TRACES_URL],
     ["T3CODE_OTLP_EXPORT_INTERVAL_MS", environment.T3CODE_OTLP_EXPORT_INTERVAL_MS],
@@ -141,11 +156,7 @@ export function makeDevelopmentLauncherScript({
   ].join("\n");
 }
 
-const developmentEnvironmentFilePath = NodePath.join(
-  desktopDir,
-  ".electron-runtime",
-  "dev-environment.sh",
-);
+const developmentEnvironmentFilePath = NodePath.join(desktopRuntimeDir, "dev-environment.sh");
 
 function writeDevelopmentEnvironmentScript() {
   NodeFS.mkdirSync(NodePath.dirname(developmentEnvironmentFilePath), { recursive: true });
@@ -159,7 +170,7 @@ export function writeDevelopmentLauncherScript(targetBinaryPath, electronBinaryP
   const script = makeDevelopmentLauncherScript({
     electronBinaryPath,
     mainEntryPath: NodePath.join(desktopDir, "dist-electron", "main.cjs"),
-    desktopRoot: desktopDir,
+    desktopRoot: developmentAppRoot,
     environmentFilePath: developmentEnvironmentFilePath,
   });
   if (
@@ -343,7 +354,7 @@ export function resolveMacLauncherPaths(appBundlePath, displayName = APP_DISPLAY
 
 function buildMacLauncher(electronBinaryPath) {
   const sourceAppBundlePath = NodePath.resolve(NodePath.dirname(electronBinaryPath), "../..");
-  const runtimeDir = NodePath.join(desktopDir, ".electron-runtime");
+  const runtimeDir = desktopRuntimeDir;
   const targetAppBundlePath = NodePath.join(runtimeDir, `${APP_DISPLAY_NAME}.app`);
   const developmentPaths = resolveMacLauncherPaths(targetAppBundlePath);
   const runtimeElectronBinaryPath = developmentPaths.runtimeElectronBinaryPath;

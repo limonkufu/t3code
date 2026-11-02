@@ -147,15 +147,22 @@ const withIdentity = <A, E, R>(
 };
 
 describe("DesktopAppIdentity", () => {
-  it.effect("isolates the V2 profile even when the legacy V1 profile exists", () =>
+  it.effect.each([
+    { name: "V2", profile: "t3code-v2", env: {} },
+    {
+      name: "RC",
+      profile: "t3code-rc",
+      env: { T3CODE_DESKTOP_RC: "1", VITE_DEV_SERVER_URL: "http://localhost:5173" },
+    },
+  ])("isolates the $name profile even when legacy profiles exist", ({ profile, env }) =>
     withIdentity(
       Effect.gen(function* () {
         const identity = yield* DesktopAppIdentity.DesktopAppIdentity;
         const userDataPath = yield* identity.resolveUserDataPath;
 
-        assert.equal(userDataPath, "/Users/alice/Library/Application Support/t3code-v2");
+        assert.equal(userDataPath, `/Users/alice/Library/Application Support/${profile}`);
       }),
-      { legacyPathExists: true },
+      { legacyPathExists: true, environment: { env } },
     ),
   );
 
@@ -177,6 +184,12 @@ describe("DesktopAppIdentity", () => {
 
   it.effect.each([
     { stage: "Beta", environment: {} },
+    {
+      stage: "RC",
+      environment: {
+        env: { T3CODE_DESKTOP_RC: "1", VITE_DEV_SERVER_URL: "http://localhost:5173" },
+      },
+    },
     {
       stage: "Nightly",
       environment: { appVersion: "0.0.43-nightly.20260929.2428" },

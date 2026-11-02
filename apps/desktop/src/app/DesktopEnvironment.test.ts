@@ -67,9 +67,20 @@ describe("DesktopEnvironment", () => {
         { VITE_DEV_SERVER_URL: "http://localhost:5173" },
       );
       const production = yield* makeEnvironment();
+      const releaseCandidate = yield* makeEnvironment(
+        {},
+        {
+          VITE_DEV_SERVER_URL: "http://localhost:5173",
+          T3CODE_DESKTOP_RC: "1",
+          T3CODE_HOME: "/Users/alice/.t3-rc",
+        },
+      );
 
       assert.equal(development.stateDir, "/Users/alice/.t3/dev");
       assert.equal(production.stateDir, "/Users/alice/.t3/userdata");
+      assert.equal(releaseCandidate.stateDir, "/Users/alice/.t3-rc/userdata");
+      assert.equal(releaseCandidate.displayName, "T3 Code (RC)");
+      assert.equal(releaseCandidate.appUserModelId, "com.t3tools.t3code.rc");
     }),
   );
 });

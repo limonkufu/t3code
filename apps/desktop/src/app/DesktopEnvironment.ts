@@ -90,7 +90,9 @@ const APP_BASE_NAME = "T3 Code";
 function resolveDesktopAppStageLabel(input: {
   readonly isDevelopment: boolean;
   readonly appVersion: string;
+  readonly releaseCandidate?: boolean;
 }): DesktopAppStageLabel {
+  if (input.releaseCandidate) return "RC";
   if (input.isDevelopment) {
     return "Dev";
   }
@@ -101,6 +103,7 @@ function resolveDesktopAppStageLabel(input: {
 export function resolveDesktopAppBranding(input: {
   readonly isDevelopment: boolean;
   readonly appVersion: string;
+  readonly releaseCandidate?: boolean;
 }): DesktopAppBranding {
   const stageLabel = resolveDesktopAppStageLabel(input);
   return {
@@ -168,6 +171,7 @@ const make = Effect.fn("desktop.environment.make")(function* (
       ? path.join(input.resourcesPath, "server.asar")
       : appRoot;
   const branding = resolveDesktopAppBranding({
+    releaseCandidate: config.releaseCandidate,
     isDevelopment,
     appVersion: input.appVersion,
   });
@@ -228,7 +232,11 @@ const make = Effect.fn("desktop.environment.make")(function* (
     branding,
     displayName,
     appUserModelId: Option.getOrElse(config.appUserModelIdOverride, () =>
-      isDevelopment ? "com.t3tools.t3code.dev" : "com.t3tools.t3code",
+      config.releaseCandidate
+        ? "com.t3tools.t3code.rc"
+        : isDevelopment
+          ? "com.t3tools.t3code.dev"
+          : "com.t3tools.t3code",
     ),
     linuxDesktopEntryName: resolveLinuxDesktopEntryName(isDevelopment),
     linuxApplicationsDir,
