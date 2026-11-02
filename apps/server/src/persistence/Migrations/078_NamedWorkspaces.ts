@@ -4,7 +4,7 @@ import * as SqlClient from "effect/sql/SqlClient";
 export default Effect.gen(function* () {
   const sql = yield* SqlClient.SqlClient;
   yield* sql`
-    CREATE TABLE named_workspace_events (
+    CREATE TABLE IF NOT EXISTS named_workspace_events (
       sequence INTEGER PRIMARY KEY AUTOINCREMENT,
       command_id TEXT NOT NULL UNIQUE,
       workspace_id TEXT NOT NULL,
@@ -13,7 +13,7 @@ export default Effect.gen(function* () {
     )
   `;
   yield* sql`
-    CREATE INDEX idx_named_workspace_latest
+    CREATE INDEX IF NOT EXISTS idx_named_workspace_latest
     ON named_workspace_events (workspace_id, sequence DESC)
   `;
 });

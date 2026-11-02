@@ -32,19 +32,25 @@ it("preserves the live scroll position across Activity reconnections and restore
   }
   function Screen(props: {
     searchMode: WorkspaceSearchMode | undefined;
+    scopeKey: string;
     savedOffset: number;
     inset: number;
   }) {
     const list = useRef<ListHandle>(null);
-    useSearchScrollRestoration(props.searchMode, () => {
-      list.current?.scrollToOffset(props.savedOffset - props.inset);
-    });
+    useSearchScrollRestoration(
+      props.searchMode,
+      () => {
+        list.current?.scrollToOffset(props.savedOffset - props.inset);
+      },
+      props.scopeKey,
+    );
     return <List ref={list} />;
   }
   const root = createRoot(document.createElement("div"));
   using _root = { [Symbol.dispose]: () => act(() => root.unmount()) };
   const input: Parameters<typeof Screen>[0] = {
     searchMode: "resting",
+    scopeKey: "all",
     savedOffset: 0,
     inset: 0,
   };
@@ -94,4 +100,20 @@ it("preserves the live scroll position across Activity reconnections and restore
   input.searchMode = "resting";
   await render(true);
   expect(scroll.mock.calls).toEqual([[616]]);
+
+  input.scopeKey = "account-rollout";
+  input.savedOffset = 360;
+  await render(true);
+  expect(liveOffset).toBe(312);
+  liveOffset = 900;
+  await render(false);
+  await render(true);
+  expect(liveOffset).toBe(900);
+  expect(scroll.mock.calls).toEqual([[616], [312]]);
+
+  input.scopeKey = "all";
+  input.savedOffset = 1280;
+  await render(true);
+  expect(liveOffset).toBe(1232);
+  expect(scroll.mock.calls).toEqual([[616], [312], [1232]]);
 });

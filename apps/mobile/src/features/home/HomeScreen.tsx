@@ -334,13 +334,17 @@ export function HomeScreen(props: HomeScreenProps) {
   const restoredOffset = namedScope
     ? (namedView.scrollOffset ?? 0)
     : (namedView.scrollOffset ?? workspace?.state.tabs.threads.scrollOffset);
-  useSearchScrollRestoration(searchMode, () => {
-    if (restoredOffset === undefined) return;
-    void listRef.current?.scrollToOffset({
-      offset: restoredOffset - (Platform.OS === "ios" ? insets.top : 0),
-      animated: false,
-    });
-  }, `${namedScope?.environmentId ?? "all"}:${namedScope?.workspaceId ?? "all"}`);
+  useSearchScrollRestoration(
+    searchMode,
+    () => {
+      if (restoredOffset === undefined) return;
+      void listRef.current?.scrollToOffset({
+        offset: restoredOffset - (Platform.OS === "ios" ? insets.top : 0),
+        animated: false,
+      });
+    },
+    `${namedScope?.environmentId ?? "all"}:${namedScope?.workspaceId ?? "all"}`,
+  );
   const swipeRowActivation = createSwipeRowActivation();
   const activateVisibleRows = (rows: ReadonlyArray<ThreadListV2ListItem>) => {
     const state = listRef.current?.getState();

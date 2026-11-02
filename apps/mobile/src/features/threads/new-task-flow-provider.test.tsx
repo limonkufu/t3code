@@ -40,6 +40,9 @@ vi.mock("../../state/atom-registry", () => ({
       mocks.registry().set(atom, value),
   },
 }));
+vi.mock("../../state/namedWorkspaces", () => ({
+  readNamedWorkspaceScope: () => null,
+}));
 vi.mock("../../state/entities", () => ({
   useProjects: mocks.projects,
   useThreadShells: () => [],

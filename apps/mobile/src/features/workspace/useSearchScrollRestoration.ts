@@ -5,15 +5,20 @@ import type { WorkspaceSearchMode } from "./workspace-tabs-state";
 export function useSearchScrollRestoration(
   searchMode: WorkspaceSearchMode | undefined,
   restore: () => void,
+  scopeKey?: string,
 ) {
   const previousSearchMode = useRef(searchMode);
-  // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- restores the native list's saved search position
+  const previousScope = useRef(scopeKey);
+  // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- restores the native list's saved search or Space position
   useEffect(() => {
     const cancelledSearch =
       previousSearchMode.current !== undefined &&
       previousSearchMode.current !== "resting" &&
       searchMode === "resting";
+    const scopeChanged = previousScope.current !== scopeKey;
     previousSearchMode.current = searchMode;
-    if (cancelledSearch) restore();
-  }, [searchMode, restore]);
+    previousScope.current = scopeKey;
+    if (cancelledSearch || (scopeChanged && (searchMode === undefined || searchMode === "resting")))
+      restore();
+  }, [searchMode, restore, scopeKey]);
 }

@@ -210,6 +210,34 @@ const assertV2MigrationsCanRun = Effect.fn("assertV2MigrationsCanRun")(function*
   });
 });
 
+// Prototype 73 predates upstream's 73; replay upstream migrations while retaining the Space events.
+const reconcileNamedWorkspacePrototypeMigration = Effect.fn(
+  "reconcileNamedWorkspacePrototypeMigration",
+)(function* () {
+  const sql = yield* SqlClient.SqlClient;
+  return yield* sql.withTransaction(
+    Effect.gen(function* () {
+      const tables = yield* sql`
+      SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'effect_sql_migrations'
+    `;
+      if (tables.length === 0) return;
+      const legacy = yield* sql`
+      SELECT migration_id FROM effect_sql_migrations
+      WHERE migration_id = 73 AND name = 'NamedWorkspaces'
+    `;
+      if (legacy.length === 0) return;
+      const later =
+        yield* sql`SELECT migration_id FROM effect_sql_migrations WHERE migration_id > 73 LIMIT 1`;
+      if (later.length > 0)
+        return yield* new Migrator.MigrationError({
+          kind: "BadState",
+          message: "Cannot upgrade Spaces prototype with unexpected later migrations.",
+        });
+      yield* sql`DELETE FROM effect_sql_migrations WHERE migration_id = 73 AND name = 'NamedWorkspaces'`;
+    }),
+  );
+});
+
 const run = Migrator.make({});
 
 export interface RunMigrationsOptions {
@@ -222,6 +250,9 @@ export const runMigrations = Effect.fn("runMigrations")(function* ({
   const includesV2 =
     toMigrationInclusive === undefined || toMigrationInclusive >= FIRST_V2_MIGRATION_ID;
   const previewMigrations = includesV2 ? yield* reconcileV2PreviewMigration() : [];
+  if (toMigrationInclusive === undefined || toMigrationInclusive >= 78) {
+    yield* reconcileNamedWorkspacePrototypeMigration();
+  }
   if (includesV2) {
     yield* assertV2MigrationsCanRun(toMigrationInclusive);
   }

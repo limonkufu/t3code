@@ -1,5 +1,5 @@
 // Shared across hook instances so sidebar, header and menu actions invalidate each other.
-const currentActions = new Map<string, symbol>();
+const currentActions = new Map<string, { readonly kind: string; readonly threadKey: string }>();
 const listeners = new Set<() => void>();
 
 export function subscribe(listener: () => void) {
@@ -15,10 +15,10 @@ function notify() {
 
 export function begin(kind: string, threadKey: string) {
   const key = JSON.stringify([kind, threadKey]);
-  const token = Symbol();
-  currentActions.set(key, token);
+  const action = { kind, threadKey };
+  currentActions.set(key, action);
   notify();
-  const isCurrent = () => currentActions.get(key) === token;
+  const isCurrent = () => currentActions.get(key) === action;
   return {
     isCurrent,
     finish: () => {
@@ -31,7 +31,14 @@ export function begin(kind: string, threadKey: string) {
 }
 
 export function invalidate(kind: string, threadKey: string) {
-  currentActions.delete(JSON.stringify([kind, threadKey]));
+  for (const [key, action] of currentActions) {
+    if (
+      action.threadKey === threadKey &&
+      (action.kind === kind || action.kind.startsWith(`${kind}:`))
+    ) {
+      currentActions.delete(key);
+    }
+  }
   notify();
 }
 

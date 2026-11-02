@@ -8,6 +8,7 @@ import * as Path from "effect/Path";
 import * as SqlClient from "effect/sql/SqlClient";
 
 import { migrationManifest, runMigrations } from "./Migrations.ts";
+import NamedWorkspaces from "./Migrations/078_NamedWorkspaces.ts";
 
 const v2Migrations = migrationManifest.filter(([id]) => id >= 55);
 const newerMigrationId = Math.max(...migrationManifest.map(([id]) => id)) + 1;
@@ -75,6 +76,56 @@ describe("runMigrations", () => {
       assert.deepStrictEqual(yield* runMigrations(), v2Migrations);
       assert.deepStrictEqual(yield* history, migrationManifest);
       assert.isAbove(yield* v2TableCount, 0);
+    }).pipe(Effect.provide(NodeSqliteClient.layer({ filename: ":memory:" }))),
+  );
+
+  it.effect("upgrades the Spaces prototype without losing its event history", () =>
+    Effect.gen(function* () {
+      const sql = yield* SqlClient.SqlClient;
+      yield* runMigrations({ toMigrationInclusive: 72 });
+      yield* NamedWorkspaces;
+      yield* sql`INSERT INTO effect_sql_migrations (migration_id, name) VALUES (73, 'NamedWorkspaces')`;
+      yield* sql`
+        INSERT INTO named_workspace_events (command_id, workspace_id, event_type, state_json)
+        VALUES ('create-account', 'account-rollout', 'created', '{"name":"Account rollout"}')
+      `;
+
+      assert.deepStrictEqual(
+        yield* runMigrations(),
+        migrationManifest.filter(([id]) => id >= 73),
+      );
+      assert.deepStrictEqual(yield* history, migrationManifest);
+      const events =
+        yield* sql`SELECT command_id, workspace_id, state_json FROM named_workspace_events`;
+      assert.deepStrictEqual(events, [
+        {
+          command_id: "create-account",
+          workspace_id: "account-rollout",
+          state_json: '{"name":"Account rollout"}',
+        },
+      ]);
+      const indexes = yield* sql`
+        SELECT name FROM sqlite_master WHERE type = 'index'
+        AND name IN ('orchestration_v2_projection_turn_items_active_ordinal_idx', 'orchestration_v2_projection_turn_items_active_run_idx')
+      `;
+      assert.strictEqual(indexes.length, 2);
+      assert.deepStrictEqual(yield* runMigrations(), []);
+    }).pipe(Effect.provide(NodeSqliteClient.layer({ filename: ":memory:" }))),
+  );
+
+  it.effect("leaves unexpected later Spaces prototype migrations untouched", () =>
+    Effect.gen(function* () {
+      const sql = yield* SqlClient.SqlClient;
+      yield* runMigrations({ toMigrationInclusive: 72 });
+      yield* NamedWorkspaces;
+      yield* sql`
+        INSERT INTO effect_sql_migrations (migration_id, name)
+        VALUES (73, 'NamedWorkspaces'), (74, 'FutureSpacesMigration')
+      `;
+      const before = yield* history;
+      const exit = yield* Effect.exit(runMigrations());
+      assert.isTrue(Exit.isFailure(exit));
+      assert.deepStrictEqual(yield* history, before);
     }).pipe(Effect.provide(NodeSqliteClient.layer({ filename: ":memory:" }))),
   );
 
